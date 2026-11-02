@@ -1,0 +1,3682 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local GuiService = game:GetService("GuiService")
+local Stats = game:GetService("Stats")
+local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local TEAM_GROUP_A = "IIIIllllIIIllIIlIlI_IIllIlIIIllII_o"
+local TEAM_GROUP_B = "lIIooolll"
+
+local Config = {
+    Aim = {
+        Enabled = false,
+        TeamCheck = true,
+        VisibleCheck = true,
+        FpvDrones = true,
+        WallCheck = true,
+        Prediction = false,
+        MaxDistance = 2000,
+        DroneRadius = 20,
+        Fov = 170,
+        Hitbox = "head",
+        Priority = "fov",
+        Smoothing = 0,
+        HoldTarget = false,
+        FireOnLock = false,
+        HeadOnly = false,
+    },
+    Trigger = {
+        Enabled = false,
+        Delay = 110,
+        Range = 420,
+        VisibleCheck = true,
+        AutoRevolver = false,
+        TeamCheck = true,
+        HeadshotOnly = false,
+        Burst = 1,
+        PixelThreshold = 28,
+    },
+    Visuals = {
+        PlayerEsp = {
+            Enabled = false,
+            Box = true,
+            Health = true,
+            Name = true,
+            Distance = true,
+            TeamCheck = true,
+            MaxDistance = 5000,
+            Skeleton = false,
+            HeadCircle = false,
+            HpText = false,
+            Weapon = false,
+            Tracer = false,
+            FilledBox = false,
+            CornerBox = false,
+            Highlight = false,
+            IgnoreDowned = true,
+        },
+        DroneEsp = {
+            Enabled = false,
+            Box = true,
+            Name = true,
+            Distance = true,
+            TeamCheck = true,
+            MaxDistance = 10000,
+            Owner = false,
+            Tracer = false,
+            Filled = false,
+        },
+        World = {
+            Fullbright = false,
+            RemoveFog = false,
+            RemoveSky = false,
+            ClearTerrain = false,
+            Crosshair = false,
+            CrosshairSize = 8,
+            NoAmbience = false,
+        },
+    },
+    Misc = {
+        SpeedEnabled = false,
+        WalkSpeed = 24,
+        JumpEnabled = false,
+        JumpPower = 50,
+        InfiniteJump = false,
+        Noclip = false,
+        Fly = false,
+        FlySpeed = 60,
+        AntiFall = false,
+        Freeze = false,
+    },
+    Auto = {
+        AutoJump = false,
+        BunnyHop = false,
+        AntiAfk = false,
+        AlwaysSprint = false,
+        AutoReload = false,
+        AutoHeal = false,
+    },
+    Weapon = {
+        NoRecoil = false,
+        NoSpread = false,
+        InstaReload = false,
+    },
+    Antiban = {
+        SilenceRemote = false,
+        BlockTerminate = false,
+        RateLimitTrigger = true,
+        RateLimitAim = true,
+        SpoofLook = false,
+        HeartbeatJitter = false,
+        MonitorRegistry = false,
+    },
+    Interface = {
+        ShowFov = false,
+        ShowWatermark = true,
+        ShowCrosshair = false,
+        CrosshairSize = 8,
+    },
+}
+
+local LightingOriginal = {
+    Brightness = Lighting.Brightness,
+    ClockTime = Lighting.ClockTime,
+    FogEnd = Lighting.FogEnd,
+    FogStart = Lighting.FogStart,
+    Ambient = Lighting.Ambient,
+    OutdoorAmbient = Lighting.OutdoorAmbient,
+}
+
+local hasDrawing = false
+do
+    local ok = pcall(function()
+        if typeof(Drawing) == "string" then
+            error("no drawing")
+        end
+        local probe = Drawing.new("Square")
+        if not probe then error("nil probe") end
+        probe:Remove()
+        hasDrawing = true
+    end)
+end
+
+local previous = playerGui:FindFirstChild("ShitaroMenuOnly")
+if previous then
+    previous:Destroy()
+end
+
+local colors = {
+    bg = Color3.fromRGB(7, 7, 9),
+    text = Color3.fromRGB(230, 230, 236),
+    sub = Color3.fromRGB(170, 170, 178),
+    dim = Color3.fromRGB(112, 112, 122),
+    faint = Color3.fromRGB(68, 68, 76),
+    accent = Color3.fromRGB(200, 148, 232),
+}
+
+local fonts = {
+    normal = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.SemiBold),
+    bold = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Bold),
+    watermark = Font.new("rbxasset://fonts/families/SourceSansPro.json"),
+}
+
+local icons = {
+    code = 106124864132557,
+    crosshair = 83752373575368,
+    trigger = 81854854241463,
+    eye = 127234874352422,
+    gear = 109485777305919,
+    sliders = 125396339381135,
+    save = 122894934359450,
+    chevron = 71457658246709,
+    grip = 128492050787735,
+    layers = 114499998778667,
+    wifi = 104941258142372,
+    ram = 82464660673318,
+    clock = 136533241128438,
+}
+
+local RANGES = {
+    ["170°"] = { min = 10, max = 540, suffix = "°", default = 170 },
+    ["8°"] = { min = 0, max = 180, suffix = "°", default = 8 },
+    ["0"] = { min = 0, max = 100, suffix = "", default = 0 },
+    ["2000m"] = { min = 100, max = 5000, suffix = "m", default = 2000 },
+    ["20m"] = { min = 5, max = 100, suffix = "m", default = 20 },
+    ["110ms"] = { min = 20, max = 500, suffix = "ms", default = 110 },
+    ["420m"] = { min = 50, max = 1000, suffix = "m", default = 420 },
+    ["5000m"] = { min = 100, max = 10000, suffix = "m", default = 5000 },
+    ["10000m"] = { min = 100, max = 10000, suffix = "m", default = 10000 },
+    ["24"] = { min = 16, max = 100, suffix = "", default = 24 },
+    ["16"] = { min = 16, max = 100, suffix = "", default = 16 },
+    ["50"] = { min = 10, max = 200, suffix = "", default = 50 },
+    ["60"] = { min = 10, max = 300, suffix = "", default = 60 },
+    ["15"] = { min = 0, max = 60, suffix = "", default = 15 },
+    ["28px"] = { min = 4, max = 200, suffix = "px", default = 28 },
+    ["1"] = { min = 1, max = 10, suffix = "", default = 1 },
+    ["3"] = { min = 1, max = 3, suffix = "", default = 1 },
+    ["8px"] = { min = 2, max = 40, suffix = "px", default = 8 },
+}
+
+local function make(class, properties, parent)
+    local object = Instance.new(class)
+    if object:IsA("GuiObject") then
+        object.BorderSizePixel = 0
+        object.BackgroundTransparency = 1
+    end
+    if object:IsA("TextLabel") or object:IsA("TextButton") then
+        object.Text = ""
+        object.FontFace = fonts.normal
+        object.TextSize = 14
+        object.TextColor3 = colors.text
+        object.TextXAlignment = Enum.TextXAlignment.Left
+        object.AutoLocalize = false
+    end
+    if object:IsA("GuiButton") then
+        object.AutoButtonColor = false
+    end
+    for key, value in pairs(properties or {}) do
+        object[key] = value
+    end
+    object.Parent = parent
+    return object
+end
+
+local function corner(parent, radius)
+    return make("UICorner", { CornerRadius = radius }, parent)
+end
+
+local function stroke(parent, transparency)
+    make("UIStroke", {
+        Color = Color3.new(1, 1, 1),
+        Transparency = transparency,
+        Thickness = 1,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+    }, parent)
+end
+
+local function padding(parent, left, right, top, bottom)
+    make("UIPadding", {
+        PaddingLeft = UDim.new(0, left),
+        PaddingRight = UDim.new(0, right),
+        PaddingTop = UDim.new(0, top),
+        PaddingBottom = UDim.new(0, bottom),
+    }, parent)
+end
+
+local function row(parent, gap, alignment)
+    return make("UIListLayout", {
+        FillDirection = Enum.FillDirection.Horizontal,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, gap),
+        VerticalAlignment = Enum.VerticalAlignment.Center,
+        HorizontalAlignment = alignment or Enum.HorizontalAlignment.Left,
+    }, parent)
+end
+
+local function image(parent, key, size, order, transparency)
+    return make("ImageLabel", {
+        Size = UDim2.fromOffset(size, size),
+        Image = "rbxassetid://" .. icons[key],
+        ScaleType = Enum.ScaleType.Fit,
+        LayoutOrder = order or 0,
+        ImageTransparency = transparency or 0,
+    }, parent)
+end
+
+local function animate(object, properties, duration)
+    TweenService:Create(
+        object,
+        TweenInfo.new(duration or 0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        properties
+    ):Play()
+end
+
+local gui = make("ScreenGui", {
+    Name = "ShitaroMenuOnly",
+    IgnoreGuiInset = true,
+    ResetOnSpawn = false,
+    ScreenInsets = Enum.ScreenInsets.None,
+    ClipToDeviceSafeArea = false,
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+    DisplayOrder = 10000,
+}, playerGui)
+
+local connections = {}
+local function connect(signal, callback)
+    local connection = signal:Connect(callback)
+    table.insert(connections, connection)
+    return connection
+end
+
+connect(gui.Destroying, function()
+    for _, connection in ipairs(connections) do
+        pcall(function() connection:Disconnect() end)
+    end
+end)
+
+local window = make("Frame", {
+    Name = "Menu",
+    Position = UDim2.fromOffset(0, 0),
+    Visible = false,
+    Size = UDim2.fromOffset(780, 470),
+    BackgroundTransparency = 0.16,
+    BackgroundColor3 = colors.bg,
+    Active = true,
+}, gui)
+
+local menuScale = make("UIScale", { Scale = 1 }, window)
+corner(window, UDim.new(0, 10))
+stroke(window, 0.935)
+
+local header = make("Frame", { Size = UDim2.new(1, 0, 0, 40) }, window)
+local tintClip = make("Frame", { Size = UDim2.fromScale(1, 1), ClipsDescendants = true }, header)
+local tint = make("Frame", {
+    Size = UDim2.new(1, 0, 1, 12),
+    BackgroundColor3 = Color3.new(1, 1, 1),
+    BackgroundTransparency = 0.976,
+}, tintClip)
+corner(tint, UDim.new(0, 10))
+
+make("Frame", {
+    Position = UDim2.fromOffset(0, 40),
+    Size = UDim2.new(1, 0, 0, 1),
+    BackgroundColor3 = Color3.new(1, 1, 1),
+    BackgroundTransparency = 0.94,
+}, window)
+
+local dragHandle = make("TextButton", { Size = UDim2.fromScale(1, 1), ZIndex = 1 }, header)
+
+local titleRow = make("Frame", {
+    Position = UDim2.fromOffset(14, 0),
+    Size = UDim2.fromOffset(0, 40),
+    AutomaticSize = Enum.AutomaticSize.X,
+    ZIndex = 2,
+}, header)
+
+row(titleRow, 8)
+
+make("TextLabel", {
+    Text = "shitaro",
+    FontFace = fonts.bold,
+    TextSize = 15,
+    Size = UDim2.fromOffset(0, 40),
+    AutomaticSize = Enum.AutomaticSize.X,
+    LayoutOrder = 1,
+}, titleRow)
+
+make("Frame", { Size = UDim2.fromOffset(4, 1), LayoutOrder = 2 }, titleRow)
+
+local save = make("Frame", {
+    Size = UDim2.fromOffset(24, 24),
+    LayoutOrder = 3,
+    BackgroundColor3 = Color3.new(1, 1, 1),
+    BackgroundTransparency = 0.952,
+}, titleRow)
+corner(save, UDim.new(0, 6))
+stroke(save, 0.925)
+
+local saveIcon = image(save, "save", 13)
+saveIcon.AnchorPoint = Vector2.new(0.5, 0.5)
+saveIcon.Position = UDim2.fromScale(0.5, 0.5)
+saveIcon.ImageColor3 = colors.dim
+
+local config = make("Frame", {
+    Size = UDim2.fromOffset(0, 24),
+    AutomaticSize = Enum.AutomaticSize.X,
+    LayoutOrder = 4,
+}, titleRow)
+row(config, 6)
+
+make("TextLabel", {
+    Text = "No config",
+    TextSize = 13,
+    TextColor3 = colors.dim,
+    Size = UDim2.fromOffset(0, 24),
+    AutomaticSize = Enum.AutomaticSize.X,
+    LayoutOrder = 1,
+}, config)
+
+local configIcon = image(config, "chevron", 10, 2)
+configIcon.ImageColor3 = colors.dim
+
+local profile = make("Frame", {
+    Size = UDim2.fromOffset(70, 24),
+    LayoutOrder = 5,
+    BackgroundColor3 = Color3.new(1, 1, 1),
+    BackgroundTransparency = 0.952,
+}, titleRow)
+corner(profile, UDim.new(0, 6))
+stroke(profile, 0.925)
+
+make("TextLabel", {
+    Text = "global",
+    TextSize = 13,
+    Position = UDim2.fromOffset(10, 0),
+    Size = UDim2.new(1, -25, 1, 0),
+}, profile)
+
+local profileIcon = image(profile, "chevron", 10)
+profileIcon.AnchorPoint = Vector2.new(1, 0.5)
+profileIcon.Position = UDim2.new(1, -8, 0.5, 0)
+profileIcon.ImageColor3 = colors.dim
+
+local body = make("Frame", {
+    Name = "EmptyPages",
+    Position = UDim2.fromOffset(0, 41),
+    Size = UDim2.new(1, 0, 1, -89),
+}, window)
+
+local nav = make("Frame", {
+    AnchorPoint = Vector2.new(0.5, 1),
+    Position = UDim2.new(0.5, 0, 1, -9),
+    Size = UDim2.fromOffset(0, 32),
+    AutomaticSize = Enum.AutomaticSize.X,
+    BackgroundColor3 = Color3.new(1, 1, 1),
+    BackgroundTransparency = 0.958,
+    ZIndex = 3,
+}, window)
+
+local navCorner = corner(nav, UDim.new(1, 0))
+stroke(nav, 0.935)
+padding(nav, 3, 3, 3, 3)
+
+local highlight = make("Frame", {
+    Size = UDim2.fromOffset(0, 26),
+    BackgroundColor3 = Color3.new(1, 1, 1),
+    BackgroundTransparency = 0.925,
+    ZIndex = 3,
+}, nav)
+corner(highlight, UDim.new(1, 0))
+
+local tabRow = make("Frame", {
+    Size = UDim2.fromOffset(0, 26),
+    AutomaticSize = Enum.AutomaticSize.X,
+    ZIndex = 4,
+}, nav)
+
+local navigationLayout = row(tabRow, 2)
+local tabs = {}
+local selected
+
+local function updateHighlight()
+    if not selected or not gui.Parent then return end
+    local scale = menuScale.Scale
+    local delta = (selected.button.AbsolutePosition - tabRow.AbsolutePosition) / scale
+    animate(highlight, {
+        Position = UDim2.fromOffset(delta.X, delta.Y),
+        Size = UDim2.fromOffset(
+            selected.button.AbsoluteSize.X / scale,
+            selected.button.AbsoluteSize.Y / scale
+        ),
+    }, 0.24)
+end
+
+local function drawTab(tab)
+    local active = tab == selected
+    tab.label.FontFace = active and fonts.bold or fonts.normal
+    animate(tab.label, {
+        TextColor3 = active and colors.text or (tab.hover and colors.sub or colors.dim),
+    })
+    animate(tab.icon, {
+        ImageColor3 = active and colors.accent or (tab.hover and colors.sub or colors.dim),
+    })
+    tab.page.Visible = active
+end
+
+for index, entry in ipairs({
+    { "aim", "crosshair" },
+    { "trigger", "trigger" },
+    { "visuals", "eye" },
+    { "misc", "gear" },
+    { "settings", "sliders" },
+}) do
+    local button = make("TextButton", {
+        Name = entry[1],
+        Size = UDim2.fromOffset(0, 26),
+        AutomaticSize = Enum.AutomaticSize.X,
+        LayoutOrder = index,
+        ZIndex = 4,
+    }, tabRow)
+
+    padding(button, 10, 12, 0, 0)
+    row(button, 6)
+
+    local tab = {
+        button = button,
+        icon = image(button, entry[2], 13, 1),
+        label = make("TextLabel", {
+            Text = entry[1],
+            TextSize = 13,
+            Size = UDim2.fromOffset(0, 26),
+            AutomaticSize = Enum.AutomaticSize.X,
+            LayoutOrder = 2,
+            ZIndex = 4,
+        }, button),
+        page = make("Frame", {
+            Name = entry[1],
+            Size = UDim2.fromScale(1, 1),
+            Visible = false,
+        }, body),
+    }
+
+    tab.icon.ZIndex = 4
+    table.insert(tabs, tab)
+    selected = selected or tab
+
+    connect(button.MouseEnter, function() tab.hover = true; drawTab(tab) end)
+    connect(button.MouseLeave, function() tab.hover = false; drawTab(tab) end)
+    connect(button.Activated, function()
+        selected = tab
+        for _, item in ipairs(tabs) do drawTab(item) end
+        task.defer(updateHighlight)
+    end)
+    connect(button:GetPropertyChangedSignal("AbsoluteSize"), updateHighlight)
+    drawTab(tab)
+end
+
+connect(tabRow:GetPropertyChangedSignal("AbsolutePosition"), updateHighlight)
+task.defer(updateHighlight)
+
+local grip = make("ImageButton", {
+    AnchorPoint = Vector2.new(1, 1),
+    Position = UDim2.new(1, -6, 1, -6),
+    Size = UDim2.fromOffset(11, 11),
+    Image = "rbxassetid://" .. icons.grip,
+    ImageColor3 = colors.faint,
+    ZIndex = 10,
+}, window)
+
+local watermark = make("TextButton", {
+    Name = "Watermark",
+    AnchorPoint = Vector2.new(1, 0),
+    Position = UDim2.new(1, 0, 0, 0),
+    ZIndex = 20,
+    Size = UDim2.fromOffset(0, 34),
+    AutomaticSize = Enum.AutomaticSize.X,
+}, gui)
+
+row(watermark, 10, Enum.HorizontalAlignment.Left)
+
+local function pill(order)
+    local frame = make("Frame", {
+        Size = UDim2.fromOffset(0, 34),
+        AutomaticSize = Enum.AutomaticSize.X,
+        BackgroundColor3 = Color3.fromRGB(12, 20, 25),
+        BackgroundTransparency = 0.686274528503418,
+        LayoutOrder = order,
+    }, watermark)
+    corner(frame, UDim.new(1, 0))
+    padding(frame, 12, 12, 8, 8)
+    row(frame, 0)
+    return frame
+end
+
+local function spacer(parent, width, order)
+    make("Frame", { Size = UDim2.fromOffset(width, 1), LayoutOrder = order }, parent)
+end
+
+local function watermarkText(parent, text, order)
+    local container = make("Frame", {
+        Size = UDim2.fromOffset(0, 18),
+        AutomaticSize = Enum.AutomaticSize.X,
+        LayoutOrder = order,
+    }, parent)
+
+    local shadow = make("TextLabel", {
+        Text = text,
+        FontFace = fonts.watermark,
+        TextSize = 16,
+        TextColor3 = Color3.new(),
+        TextTransparency = 0.15,
+        Position = UDim2.fromOffset(1, 1),
+        Size = UDim2.fromOffset(0, 18),
+        AutomaticSize = Enum.AutomaticSize.X,
+    }, container)
+
+    local label = make("TextLabel", {
+        Text = text,
+        FontFace = fonts.watermark,
+        TextSize = 16,
+        TextColor3 = Color3.new(1, 1, 1),
+        Size = UDim2.fromOffset(0, 18),
+        AutomaticSize = Enum.AutomaticSize.X,
+        ZIndex = 2,
+    }, container)
+
+    connect(label:GetPropertyChangedSignal("Text"), function()
+        shadow.Text = label.Text
+    end)
+
+    return label
+end
+
+local brand = pill(1)
+image(brand, "code", 18, 1, 0.392)
+spacer(brand, 8, 2)
+watermarkText(brand, "shitaro.lol", 3)
+
+local metrics = pill(2)
+local values = {}
+
+for index, name in ipairs({ "User", "FPS", "Ping", "RAM", "Time" }) do
+    if index > 1 then
+        local separator = make("Frame", {
+            Size = UDim2.fromOffset(25, 14),
+            LayoutOrder = index * 2 - 1,
+        }, metrics)
+        make("Frame", {
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.fromScale(0.5, 0.5),
+            Size = UDim2.fromOffset(1, 14),
+            BackgroundColor3 = Color3.new(1, 1, 1),
+            BackgroundTransparency = 0.392,
+        }, separator)
+    end
+
+    local group = make("Frame", {
+        Size = UDim2.fromOffset(0, 18),
+        AutomaticSize = Enum.AutomaticSize.X,
+        LayoutOrder = index * 2,
+    }, metrics)
+    row(group, 0)
+
+    if name == "User" then
+        local avatar = make("ImageLabel", {
+            Size = UDim2.fromOffset(18, 18),
+            LayoutOrder = 1,
+            Image = "rbxthumb://type=AvatarHeadShot&id=" .. player.UserId .. "&w=48&h=48",
+            ScaleType = Enum.ScaleType.Crop,
+            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+            BackgroundTransparency = 0,
+        }, group)
+        corner(avatar, UDim.new(1, 0))
+    else
+        local keys = { FPS = "layers", Ping = "wifi", RAM = "ram", Time = "clock" }
+        image(group, keys[name], 14, 1, 0.392)
+    end
+
+    spacer(group, 8, 2)
+    values[name] = watermarkText(group, name == "User" and player.Name or "-", 3)
+end
+
+local gesture
+local safeOrigin = Vector2.zero
+local safeSize = Vector2.new(780, 470)
+local activeSlider
+local uiState = {}
+
+local function makeScroll(parent)
+    local s = make("ScrollingFrame", {
+        Size = UDim2.fromScale(1, 1),
+        CanvasSize = UDim2.fromOffset(0, 0),
+        ScrollBarThickness = 2,
+        ScrollBarImageColor3 = colors.dim,
+        ScrollingDirection = Enum.ScrollingDirection.Y,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+    }, parent)
+    return s
+end
+
+local previewScroll = makeScroll(tabs[1].page)
+
+local panels = {}
+
+local function previewPanel(title, order, count)
+    local holder = make("Frame", {
+        Name = title,
+        Size = UDim2.fromOffset(240, 22 + count * 30),
+        LayoutOrder = order,
+    }, previewScroll)
+
+    make("TextLabel", {
+        Text = title,
+        TextSize = 12,
+        TextColor3 = colors.dim,
+        Position = UDim2.fromOffset(10, 0),
+        Size = UDim2.new(1, -20, 0, 22),
+    }, holder)
+
+    local card = make("Frame", {
+        Position = UDim2.fromOffset(0, 22),
+        Size = UDim2.new(1, 0, 0, count * 30),
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        BackgroundTransparency = 0.958,
+        ClipsDescendants = true,
+    }, holder)
+    corner(card, UDim.new(0, 10))
+    stroke(card, 0.935)
+
+    table.insert(panels, holder)
+    return card
+end
+
+local function previewRow(card, index, name, enabled)
+    local frame = make("Frame", {
+        Position = UDim2.fromOffset(0, (index - 1) * 30),
+        Size = UDim2.new(1, 0, 0, 30),
+    }, card)
+
+    if index > 1 then
+        make("Frame", {
+            Size = UDim2.new(1, 0, 0, 1),
+            BackgroundColor3 = Color3.new(1, 1, 1),
+            BackgroundTransparency = 0.955,
+        }, frame)
+    end
+
+    make("TextLabel", {
+        Text = name,
+        TextSize = 13,
+        TextColor3 = enabled and colors.text or colors.faint,
+        Position = UDim2.fromOffset(12, 0),
+        Size = UDim2.new(0.48, -12, 1, 0),
+    }, frame)
+
+    return frame
+end
+
+local function previewToggle(frame, on, enabled, onChanged)
+    local track = make("Frame", {
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, -12, 0.5, 0),
+        Size = UDim2.fromOffset(26, 14),
+        BackgroundColor3 = on and colors.accent or Color3.new(1, 1, 1),
+        BackgroundTransparency = on and 0.5 or (enabled and 0.86 or 0.95),
+    }, frame)
+    corner(track, UDim.new(1, 0))
+
+    local knob = make("Frame", {
+        AnchorPoint = Vector2.new(0, 0.5),
+        Position = UDim2.new(0, on and 14 or 2, 0.5, 0),
+        Size = UDim2.fromOffset(10, 10),
+        BackgroundColor3 = on and colors.accent or colors.sub,
+        BackgroundTransparency = enabled and 0.15 or 0.6,
+    }, track)
+    corner(knob, UDim.new(1, 0))
+
+    local hit = make("TextButton", { Size = UDim2.fromScale(1, 1), ZIndex = 5 }, frame)
+    local key = (frame.Parent and frame.Parent.Parent and frame.Parent.Parent.Name or "?")
+        .. "/" .. tostring(frame.Position.Y.Offset)
+    uiState[key] = on
+
+    connect(hit.Activated, function()
+        on = not on
+        uiState[key] = on
+        animate(track, {
+            BackgroundColor3 = on and colors.accent or Color3.new(1, 1, 1),
+            BackgroundTransparency = on and 0.35 or 0.86,
+        })
+        animate(knob, {
+            Position = UDim2.new(0, on and 14 or 2, 0.5, 0),
+            BackgroundColor3 = on and colors.accent or colors.sub,
+            BackgroundTransparency = 0.15,
+        })
+        if type(onChanged) == "function" then pcall(onChanged, on) end
+    end)
+end
+
+local function previewDropdown(frame, text)
+    local field = make("Frame", {
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, -10, 0.5, 0),
+        Size = UDim2.new(0.47, 0, 0, 24),
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        BackgroundTransparency = 0.97,
+    }, frame)
+    corner(field, UDim.new(0, 6))
+    stroke(field, 0.96)
+
+    local label = make("TextLabel", {
+        Text = text,
+        TextSize = 12,
+        TextColor3 = colors.faint,
+        Position = UDim2.fromOffset(10, 0),
+        Size = UDim2.new(1, -28, 1, 0),
+    }, field)
+
+    local arrow = image(field, "chevron", 9)
+    arrow.AnchorPoint = Vector2.new(1, 0.5)
+    arrow.Position = UDim2.new(1, -8, 0.5, 0)
+    arrow.ImageColor3 = colors.faint
+
+    return label
+end
+
+local function previewSlider(frame, text, onChanged)
+    local area = make("Frame", {
+        AnchorPoint = Vector2.new(1, 0),
+        Position = UDim2.new(1, -10, 0, 0),
+        Size = UDim2.new(0.47, 0, 1, 0),
+    }, frame)
+
+    local number = make("Frame", {
+        Position = UDim2.new(0, 0, 0.5, -10),
+        Size = UDim2.new(0.45, 0, 0, 20),
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        BackgroundTransparency = 0.97,
+    }, area)
+    corner(number, UDim.new(0, 5))
+    stroke(number, 0.96)
+
+    local valueLabel = make("TextLabel", {
+        Text = text,
+        TextSize = 12,
+        TextColor3 = colors.faint,
+        TextXAlignment = Enum.TextXAlignment.Center,
+        Size = UDim2.fromScale(1, 1),
+    }, number)
+
+    local track = make("Frame", {
+        Position = UDim2.new(0.51, 0, 0.5, -1.5),
+        Size = UDim2.new(0.49, 0, 0, 3),
+        BackgroundColor3 = colors.faint,
+        BackgroundTransparency = 0.3,
+    }, area)
+    corner(track, UDim.new(1, 0))
+
+    local dot = make("Frame", {
+        AnchorPoint = Vector2.new(0, 0.5),
+        Position = UDim2.fromScale(0, 0.5),
+        Size = UDim2.fromOffset(10, 10),
+        BackgroundColor3 = colors.sub,
+        BackgroundTransparency = 0.35,
+    }, track)
+    corner(dot, UDim.new(1, 0))
+
+    local cfg = RANGES[text] or {
+        min = 0, max = 100, suffix = "",
+        default = tonumber(string.match(text, "%d+")) or 0,
+    }
+    local minimum = cfg.min
+    local maximum = cfg.max
+    local suffix = cfg.suffix
+    local defaultValue = cfg.default
+    local key = (frame.Parent and frame.Parent.Parent and frame.Parent.Parent.Name or "?")
+        .. "/" .. tostring(frame.Position.Y.Offset)
+    local lastValue = nil
+
+    local function setValue(value)
+        value = math.clamp(math.floor(value + 0.5), minimum, maximum)
+        uiState[key] = value
+        valueLabel.Text = tostring(value) .. suffix
+        dot.Position = UDim2.fromScale((value - minimum) / math.max(1, maximum - minimum), 0.5)
+        dot.AnchorPoint = Vector2.new(0.5, 0.5)
+        if type(onChanged) == "function" and value ~= lastValue then
+            lastValue = value
+            pcall(onChanged, value)
+        end
+    end
+
+    local function update(x)
+        setValue((x - track.AbsolutePosition.X) / math.max(1, track.AbsoluteSize.X)
+            * (maximum - minimum) + minimum)
+    end
+
+    local hit = make("TextButton", {
+        Position = UDim2.new(0.51, -8, 0, 0),
+        Size = UDim2.new(0.49, 16, 1, 0),
+        ZIndex = 5,
+    }, area)
+
+    connect(hit.InputBegan, function(input)
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1
+            and input.UserInputType ~= Enum.UserInputType.Touch then return end
+        gesture = nil
+        activeSlider = { input = input, update = update, scroll = previewScroll }
+        previewScroll.ScrollingEnabled = false
+        update(input.Position.X)
+    end)
+
+    setValue(defaultValue)
+    return setValue
+end
+
+local silent = previewPanel("silent aim", 1, 22)
+local silentTargetLabel = nil
+
+previewToggle(previewRow(silent, 1, "enable", true), false, true,
+    function(on) Config.Aim.Enabled = on end)
+previewToggle(previewRow(silent, 2, "team check"), true, false,
+    function(on) Config.Aim.TeamCheck = on end)
+previewToggle(previewRow(silent, 3, "auto shoot"), false, false,
+    function(on) Config.Trigger.Enabled = on end)
+
+local revolver = previewRow(silent, 4, "auto revolver")
+previewToggle(revolver, false, false,
+    function(on) Config.Trigger.AutoRevolver = on end)
+make("TextLabel", {
+    Text = "...",
+    TextSize = 14,
+    TextColor3 = colors.dim,
+    Position = UDim2.new(1, -58, 0, 0),
+    Size = UDim2.fromOffset(18, 30),
+}, revolver)
+
+local targetRow = previewRow(silent, 5, "target")
+silentTargetLabel = previewDropdown(targetRow, "none")
+
+local hitboxesLabel = previewDropdown(previewRow(silent, 6, "hitboxes"), "head, chest")
+local hitboxRow = previewRow(silent, 7, "hitbox")
+local hitboxLabel = previewDropdown(hitboxRow, "head")
+local hitboxFrame = hitboxLabel and hitboxLabel.Parent and hitboxLabel.Parent.Parent
+if hitboxFrame then
+    local hitBtn = make("TextButton", { Size = UDim2.fromScale(1, 1), ZIndex = 50 }, hitboxFrame)
+    connect(hitBtn.Activated, function()
+        local cycle = { "head", "chest", "pelvis" }
+        local cur = Config.Aim.Hitbox
+        local nxt = cycle[1]
+        for i = 1, #cycle do
+            if cycle[i] == cur then
+                nxt = cycle[i + 1] or cycle[1]
+                break
+            end
+        end
+        Config.Aim.Hitbox = nxt
+        if hitboxLabel then hitboxLabel.Text = nxt end
+    end)
+end
+
+previewDropdown(previewRow(silent, 8, "prefer"), "head")
+
+previewSlider(previewRow(silent, 9, "fov"), "170°",
+    function(v) Config.Aim.Fov = v end)
+
+local drawFov = previewRow(silent, 10, "draw fov")
+previewToggle(drawFov, false, false,
+    function(on) Config.Interface.ShowFov = on end)
+
+local swatch = make("Frame", {
+    Position = UDim2.new(1, -62, 0.5, -8),
+    Size = UDim2.fromOffset(16, 16),
+    BackgroundColor3 = Color3.new(1, 1, 1),
+    BackgroundTransparency = 0,
+}, drawFov)
+corner(swatch, UDim.new(0, 4))
+
+previewToggle(previewRow(silent, 11, "visible check"), true, true,
+    function(on) Config.Aim.VisibleCheck = on end)
+previewToggle(previewRow(silent, 12, "fpv drones"), true, true,
+    function(on) Config.Aim.FpvDrones = on end)
+previewSlider(previewRow(silent, 13, "max distance"), "2000m",
+    function(v) Config.Aim.MaxDistance = v end)
+previewSlider(previewRow(silent, 14, "drone radius"), "20m",
+    function(v) Config.Aim.DroneRadius = v end)
+previewToggle(previewRow(silent, 15, "wall check"), true, true,
+    function(on) Config.Aim.WallCheck = on end)
+previewToggle(previewRow(silent, 16, "prediction"), false, true,
+    function(on) Config.Aim.Prediction = on end)
+previewSlider(previewRow(silent, 17, "smoothing"), "0",
+    function(v) Config.Aim.Smoothing = v end)
+previewToggle(previewRow(silent, 18, "hold target"), false, true,
+    function(on) Config.Aim.HoldTarget = on end)
+previewToggle(previewRow(silent, 19, "fire on lock"), false, false,
+    function(on) Config.Aim.FireOnLock = on end)
+previewToggle(previewRow(silent, 20, "head only"), false, true,
+    function(on) Config.Aim.HeadOnly = on end)
+previewToggle(previewRow(silent, 21, "spoof look"), false, true,
+    function(on) Config.Antiban.SpoofLook = on end)
+previewToggle(previewRow(silent, 22, "rate limit aim"), true, true,
+    function(on) Config.Antiban.RateLimitAim = on end)
+
+local accuracy = previewPanel("accuracy", 2, 3)
+
+previewSlider(previewRow(accuracy, 1, "min damage"), "0")
+
+for index, name in ipairs({ "auto wall", "multipoints" }) do
+    local frame = previewRow(accuracy, index + 1, name)
+    previewToggle(frame, false, false)
+    make("TextLabel", {
+        Text = "...",
+        TextSize = 14,
+        TextColor3 = colors.dim,
+        Position = UDim2.new(1, -58, 0, 0),
+        Size = UDim2.fromOffset(18, 30),
+    }, frame)
+end
+
+local weapon = previewPanel("weapon", 3, 5)
+
+for index, name in ipairs({ "no recoil", "no spread", "insta reload" }) do
+    previewToggle(previewRow(weapon, index, name, true), false, true)
+end
+previewToggle(previewRow(weapon, 4, "rapid fire", true), false, true)
+previewToggle(previewRow(weapon, 5, "fast equip", true), false, true)
+
+local visualsScroll = makeScroll(tabs[3].page)
+local triggerScroll = makeScroll(tabs[2].page)
+local miscScroll = makeScroll(tabs[4].page)
+local settingsScroll = makeScroll(tabs[5].page)
+
+local visualsPanels = {}
+local triggerPanels = {}
+local miscPanels = {}
+local settingsPanels = {}
+
+local function scopedPanel(scroll, list, title, order, count)
+    local holder = make("Frame", {
+        Name = title,
+        Size = UDim2.fromOffset(240, 22 + count * 30),
+        LayoutOrder = order,
+    }, scroll)
+
+    make("TextLabel", {
+        Text = title,
+        TextSize = 12,
+        TextColor3 = colors.dim,
+        Position = UDim2.fromOffset(10, 0),
+        Size = UDim2.new(1, -20, 0, 22),
+    }, holder)
+
+    local card = make("Frame", {
+        Position = UDim2.fromOffset(0, 22),
+        Size = UDim2.new(1, 0, 0, count * 30),
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        BackgroundTransparency = 0.958,
+        ClipsDescendants = true,
+    }, holder)
+    corner(card, UDim.new(0, 10))
+    stroke(card, 0.935)
+
+    table.insert(list, holder)
+    return card
+end
+
+local _, pEspCard = scopedPanel(visualsScroll, visualsPanels, "player esp", 1, 18)
+previewToggle(previewRow(pEspCard, 1, "enabled", true), false, true,
+    function(on) Config.Visuals.PlayerEsp.Enabled = on end)
+previewToggle(previewRow(pEspCard, 2, "box"), true, true,
+    function(on) Config.Visuals.PlayerEsp.Box = on end)
+previewToggle(previewRow(pEspCard, 3, "health"), true, true,
+    function(on) Config.Visuals.PlayerEsp.Health = on end)
+previewToggle(previewRow(pEspCard, 4, "name"), true, true,
+    function(on) Config.Visuals.PlayerEsp.Name = on end)
+previewToggle(previewRow(pEspCard, 5, "distance"), true, true,
+    function(on) Config.Visuals.PlayerEsp.Distance = on end)
+previewToggle(previewRow(pEspCard, 6, "team check"), true, true,
+    function(on) Config.Visuals.PlayerEsp.TeamCheck = on end)
+previewSlider(previewRow(pEspCard, 7, "max distance"), "5000m",
+    function(v) Config.Visuals.PlayerEsp.MaxDistance = v end)
+previewToggle(previewRow(pEspCard, 8, "skeleton"), false, true,
+    function(on) Config.Visuals.PlayerEsp.Skeleton = on end)
+previewToggle(previewRow(pEspCard, 9, "head circle"), false, true,
+    function(on) Config.Visuals.PlayerEsp.HeadCircle = on end)
+previewToggle(previewRow(pEspCard, 10, "hp text"), false, true,
+    function(on) Config.Visuals.PlayerEsp.HpText = on end)
+previewToggle(previewRow(pEspCard, 11, "weapon"), false, true,
+    function(on) Config.Visuals.PlayerEsp.Weapon = on end)
+previewToggle(previewRow(pEspCard, 12, "tracer"), false, true,
+    function(on) Config.Visuals.PlayerEsp.Tracer = on end)
+previewToggle(previewRow(pEspCard, 13, "filled box"), false, true,
+    function(on) Config.Visuals.PlayerEsp.FilledBox = on end)
+previewToggle(previewRow(pEspCard, 14, "corner box"), false, true,
+    function(on) Config.Visuals.PlayerEsp.CornerBox = on end)
+previewToggle(previewRow(pEspCard, 15, "highlight"), false, true,
+    function(on) Config.Visuals.PlayerEsp.Highlight = on end)
+previewToggle(previewRow(pEspCard, 16, "ignore downed"), true, true,
+    function(on) Config.Visuals.PlayerEsp.IgnoreDowned = on end)
+previewToggle(previewRow(pEspCard, 17, "silent list"), false, true)
+previewToggle(previewRow(pEspCard, 18, "priority color"), false, true)
+
+local _, dEspCard = scopedPanel(visualsScroll, visualsPanels, "drone esp", 2, 9)
+previewToggle(previewRow(dEspCard, 1, "enabled", true), false, true,
+    function(on) Config.Visuals.DroneEsp.Enabled = on end)
+previewToggle(previewRow(dEspCard, 2, "box"), true, true,
+    function(on) Config.Visuals.DroneEsp.Box = on end)
+previewToggle(previewRow(dEspCard, 3, "name"), true, true,
+    function(on) Config.Visuals.DroneEsp.Name = on end)
+previewToggle(previewRow(dEspCard, 4, "distance"), true, true,
+    function(on) Config.Visuals.DroneEsp.Distance = on end)
+previewToggle(previewRow(dEspCard, 5, "team check"), true, true,
+    function(on) Config.Visuals.DroneEsp.TeamCheck = on end)
+previewSlider(previewRow(dEspCard, 6, "max distance"), "10000m",
+    function(v) Config.Visuals.DroneEsp.MaxDistance = v end)
+previewToggle(previewRow(dEspCard, 7, "owner"), false, true,
+    function(on) Config.Visuals.DroneEsp.Owner = on end)
+previewToggle(previewRow(dEspCard, 8, "tracer"), false, true,
+    function(on) Config.Visuals.DroneEsp.Tracer = on end)
+previewToggle(previewRow(dEspCard, 9, "filled"), false, true,
+    function(on) Config.Visuals.DroneEsp.Filled = on end)
+
+local _, worldCard = scopedPanel(visualsScroll, visualsPanels, "world", 3, 7)
+previewToggle(previewRow(worldCard, 1, "fullbright"), false, true,
+    function(on) Config.Visuals.World.Fullbright = on; applyWorld() end)
+previewToggle(previewRow(worldCard, 2, "remove fog"), false, true,
+    function(on) Config.Visuals.World.RemoveFog = on; applyWorld() end)
+previewToggle(previewRow(worldCard, 3, "remove sky"), false, true,
+    function(on) Config.Visuals.World.RemoveSky = on; applyWorld() end)
+previewToggle(previewRow(worldCard, 4, "clear terrain"), false, true,
+    function(on) Config.Visuals.World.ClearTerrain = on; applyWorld() end)
+previewToggle(previewRow(worldCard, 5, "crosshair"), false, true,
+    function(on) Config.Visuals.World.Crosshair = on end)
+previewSlider(previewRow(worldCard, 6, "cross size"), "8px",
+    function(v) Config.Visuals.World.CrosshairSize = v end)
+previewToggle(previewRow(worldCard, 7, "no ambience"), false, true,
+    function(on) Config.Visuals.World.NoAmbience = on; applyWorld() end)
+
+local _, trigCard = scopedPanel(triggerScroll, triggerPanels, "triggerbot", 1, 8)
+previewToggle(previewRow(trigCard, 1, "enabled", true), false, true,
+    function(on) Config.Trigger.Enabled = on end)
+previewSlider(previewRow(trigCard, 2, "delay"), "110ms",
+    function(v) Config.Trigger.Delay = v end)
+previewSlider(previewRow(trigCard, 3, "range"), "420m",
+    function(v) Config.Trigger.Range = v end)
+previewToggle(previewRow(trigCard, 4, "visible check"), true, true,
+    function(on) Config.Trigger.VisibleCheck = on end)
+previewToggle(previewRow(trigCard, 5, "revolver only"), false, false,
+    function(on) Config.Trigger.AutoRevolver = on end)
+previewToggle(previewRow(trigCard, 6, "team check"), true, true,
+    function(on) Config.Trigger.TeamCheck = on end)
+previewToggle(previewRow(trigCard, 7, "head only"), false, true,
+    function(on) Config.Trigger.HeadshotOnly = on end)
+previewSlider(previewRow(trigCard, 8, "pixel threshold"), "28px",
+    function(v) Config.Trigger.PixelThreshold = v end)
+
+local _, charCard = scopedPanel(miscScroll, miscPanels, "character", 1, 9)
+previewToggle(previewRow(charCard, 1, "speed", true), false, true,
+    function(on)
+        Config.Misc.SpeedEnabled = on
+        if not on then
+            local char = player.Character
+            if char then
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum then hum.WalkSpeed = 16 end
+            end
+        end
+    end)
+previewSlider(previewRow(charCard, 2, "walk speed"), "24",
+    function(v) Config.Misc.WalkSpeed = v end)
+previewToggle(previewRow(charCard, 3, "jump"), false, true,
+    function(on) Config.Misc.JumpEnabled = on end)
+previewSlider(previewRow(charCard, 4, "jump power"), "50",
+    function(v) Config.Misc.JumpPower = v end)
+previewToggle(previewRow(charCard, 5, "infinite jump"), false, true,
+    function(on) Config.Misc.InfiniteJump = on end)
+previewToggle(previewRow(charCard, 6, "noclip"), false, true,
+    function(on) Config.Misc.Noclip = on; applyNoclip(on) end)
+previewToggle(previewRow(charCard, 7, "fly"), false, true,
+    function(on) Config.Misc.Fly = on; if not on then stopFly() end end)
+previewSlider(previewRow(charCard, 8, "fly speed"), "60",
+    function(v) Config.Misc.FlySpeed = v end)
+previewToggle(previewRow(charCard, 9, "anti fall"), false, true,
+    function(on) Config.Misc.AntiFall = on end)
+
+local _, autoCard = scopedPanel(miscScroll, miscPanels, "automation", 2, 6)
+previewToggle(previewRow(autoCard, 1, "auto jump"), false, true,
+    function(on) Config.Auto.AutoJump = on end)
+previewToggle(previewRow(autoCard, 2, "bunny hop"), false, true,
+    function(on) Config.Auto.BunnyHop = on end)
+previewToggle(previewRow(autoCard, 3, "anti afk"), false, true,
+    function(on) Config.Auto.AntiAfk = on end)
+previewToggle(previewRow(autoCard, 4, "always sprint"), false, true,
+    function(on) Config.Auto.AlwaysSprint = on end)
+previewToggle(previewRow(autoCard, 5, "auto reload"), false, true,
+    function(on) Config.Auto.AutoReload = on end)
+previewToggle(previewRow(autoCard, 6, "auto heal vis"), false, true,
+    function(on) Config.Auto.AutoHeal = on end)
+
+local _, infoCard = scopedPanel(miscScroll, miscPanels, "info", 3, 6)
+local serverBtnRow = previewRow(infoCard, 1, "server info", true)
+local serverBtn = make("TextButton", {
+    Size = UDim2.fromScale(1, 1),
+    ZIndex = 5,
+}, serverBtnRow)
+connect(serverBtn.Activated, function()
+    local jobId = game.JobId
+    local placeId = game.PlaceId
+    local maxPlayers = player:GetNetworkPing and Players.MaxPlayers or 0
+    print("[INFO] JobId:", jobId)
+    print("[INFO] PlaceId:", placeId)
+    print("[INFO] Players:", #Players:GetPlayers() .. "/" .. Players.MaxPlayers)
+end)
+
+local plistBtnRow = previewRow(infoCard, 2, "player list", true)
+local plistBtn = make("TextButton", {
+    Size = UDim2.fromScale(1, 1),
+    ZIndex = 5,
+}, plistBtnRow)
+connect(plistBtn.Activated, function()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        local team = detectTeamGroup and detectTeamGroup(plr) or "?"
+        local friendly = isTeammate(plr) and "FRIEND" or "ENEMY"
+        print(string.format("  %-20s team=%s friendly=%s", plr.Name, tostring(team), friendly))
+    end
+end)
+
+local killLogRow = previewRow(infoCard, 3, "kill log", true)
+previewToggle(killLogRow, false, true, function(on) Config.LogKills = on end)
+
+local chatLogRow = previewRow(infoCard, 4, "chat log", true)
+previewToggle(chatLogRow, false, true, function(on) Config.LogChat = on end)
+
+local acDetectRow = previewRow(infoCard, 5, "ac detect", true)
+local acDetectBtn = make("TextButton", { Size = UDim2.fromScale(1, 1), ZIndex = 5 }, acDetectRow)
+connect(acDetectBtn.Activated, function()
+    detectAnticheat(true)
+end)
+
+local silentRefreshRow = previewRow(infoCard, 6, "refresh targets", true)
+local silentRefreshBtn = make("TextButton", { Size = UDim2.fromScale(1, 1), ZIndex = 5 }, silentRefreshRow)
+connect(silentRefreshBtn.Activated, function()
+    runDroneScan()
+end)
+
+local _, interfaceCard = scopedPanel(settingsScroll, settingsPanels, "interface", 1, 2)
+previewToggle(previewRow(interfaceCard, 1, "fov circle", true), false, true,
+    function(on) Config.Interface.ShowFov = on end)
+previewToggle(previewRow(interfaceCard, 2, "watermark", true), true, true,
+    function(on)
+        Config.Interface.ShowWatermark = on
+        watermark.Visible = on
+    end)
+
+local _, antibanCard = scopedPanel(settingsScroll, settingsPanels, "antiban", 2, 8)
+previewToggle(previewRow(antibanCard, 1, "silence ac"), false, true,
+    function(on) Config.Antiban.SilenceRemote = on; applyAntiban() end)
+previewToggle(previewRow(antibanCard, 2, "block terminate"), false, true,
+    function(on) Config.Antiban.BlockTerminate = on; applyAntiban() end)
+previewToggle(previewRow(antibanCard, 3, "rate trigger"), true, true,
+    function(on) Config.Antiban.RateLimitTrigger = on end)
+previewToggle(previewRow(antibanCard, 4, "rate aim"), true, true,
+    function(on) Config.Antiban.RateLimitAim = on end)
+previewToggle(previewRow(antibanCard, 5, "spoof look"), false, true,
+    function(on) Config.Antiban.SpoofLook = on; applyAntiban() end)
+previewToggle(previewRow(antibanCard, 6, "heartbeat jitter"), false, true,
+    function(on) Config.Antiban.HeartbeatJitter = on end)
+previewToggle(previewRow(antibanCard, 7, "monitor registry"), false, true,
+    function(on) Config.Antiban.MonitorRegistry = on; applyAntiban() end)
+previewToggle(previewRow(antibanCard, 8, "anti report"), false, true,
+    function(on) Config.Antiban.AntiReport = on; applyAntiban() end)
+
+local _, diagCard = scopedPanel(settingsScroll, settingsPanels, "diagnostics", 3, 3)
+local reportRow = previewRow(diagCard, 1, "print report", true)
+connect(make("TextButton", { Size = UDim2.fromScale(1, 1), ZIndex = 5 }, reportRow).Activated, function()
+    local fn = getgenv().LostFrontReport
+    if type(fn) == "function" then pcall(fn) end
+end)
+
+local unloadRow = previewRow(diagCard, 2, "unload", true)
+connect(make("TextButton", { Size = UDim2.fromScale(1, 1), ZIndex = 5 }, unloadRow).Activated, function()
+    local fn = getgenv().LostFrontUnload
+    if type(fn) == "function" then pcall(fn) end
+end)
+
+local reloadRow = previewRow(diagCard, 3, "reload targets", true)
+connect(make("TextButton", { Size = UDim2.fromScale(1, 1), ZIndex = 5 }, reloadRow).Activated, function()
+    runDroneScan()
+    refreshTeamCache()
+end)
+
+local function layoutScrollPanels(scroll, list, parentWidth)
+    local narrow = parentWidth < 620
+    local columnWidth = (parentWidth - 36) / 3
+    local y = 10
+    local maxY = 0
+
+    for index, panel in ipairs(list) do
+        panel.Position = narrow
+            and UDim2.fromOffset(10, y)
+            or UDim2.fromOffset(10 + (index - 1) * (columnWidth + 8), 10)
+
+        panel.Size = UDim2.fromOffset(
+            narrow and parentWidth - 20 or columnWidth,
+            panel.Size.Y.Offset
+        )
+
+        local panelBottom = panel.Position.Y.Offset + panel.Size.Y.Offset
+        if panelBottom > maxY then maxY = panelBottom end
+        if narrow then y = y + panel.Size.Y.Offset + 12 end
+    end
+
+    scroll.CanvasSize = UDim2.fromOffset(0, math.max(maxY + 20, 300))
+end
+
+local function layoutPreview()
+    local width = window.Size.X.Offset
+    local narrow = width < 620
+    local columnWidth = (width - 36) / 3
+    local y = 10
+
+    for index, panel in ipairs(panels) do
+        panel.Position = narrow
+            and UDim2.fromOffset(10, y)
+            or UDim2.fromOffset(10 + (index - 1) * (columnWidth + 8), 10)
+
+        panel.Size = UDim2.fromOffset(
+            narrow and width - 20 or columnWidth,
+            panel.Size.Y.Offset
+        )
+
+        y = y + panel.Size.Y.Offset + 12
+    end
+
+    previewScroll.CanvasSize = UDim2.fromOffset(0, math.max(y + 20, 300))
+
+    pcall(layoutScrollPanels, visualsScroll, visualsPanels, width)
+    pcall(layoutScrollPanels, triggerScroll, triggerPanels, width)
+    pcall(layoutScrollPanels, miscScroll, miscPanels, width)
+    pcall(layoutScrollPanels, settingsScroll, settingsPanels, width)
+end
+
+local function clampWindow()
+    local size = window.AbsoluteSize
+    local position = window.Position
+    window.Position = UDim2.fromOffset(
+        math.clamp(position.X.Offset, safeOrigin.X, safeOrigin.X + math.max(0, safeSize.X - size.X)),
+        math.clamp(position.Y.Offset, safeOrigin.Y, safeOrigin.Y + math.max(0, safeSize.Y - size.Y))
+    )
+end
+
+local function layoutNavigation()
+    local width = window.Size.X.Offset
+    local narrow = width < 620
+    local cellHeight = 26
+    local navHeight = narrow and (cellHeight * 2 + 8) or (cellHeight + 6)
+
+    nav.Size = UDim2.fromOffset(narrow and (width - 20) or 0, navHeight)
+    nav.AutomaticSize = narrow and Enum.AutomaticSize.None or Enum.AutomaticSize.X
+    navCorner.CornerRadius = UDim.new(0, narrow and 12 or math.floor(navHeight / 2))
+    body.Size = UDim2.new(1, 0, 1, -(41 + navHeight + 17))
+    tabRow.Size = UDim2.fromOffset(narrow and (width - 26) or 0, navHeight - 6)
+    tabRow.AutomaticSize = narrow and Enum.AutomaticSize.None or Enum.AutomaticSize.X
+
+    local useGrid = navigationLayout:IsA("UIGridLayout")
+    if narrow ~= useGrid then
+        navigationLayout:Destroy()
+        if narrow then
+            navigationLayout = make("UIGridLayout", {
+                SortOrder = Enum.SortOrder.LayoutOrder,
+                FillDirection = Enum.FillDirection.Horizontal,
+                FillDirectionMaxCells = 3,
+            }, tabRow)
+        else
+            navigationLayout = row(tabRow, 2)
+        end
+    end
+
+    if narrow then
+        navigationLayout.CellPadding = UDim2.fromOffset(2, 2)
+        navigationLayout.CellSize = UDim2.new(1 / 3, -4 / 3, 0, cellHeight)
+    end
+
+    for _, tab in ipairs(tabs) do
+        tab.button.AutomaticSize = narrow and Enum.AutomaticSize.None or Enum.AutomaticSize.X
+        tab.button.Size = UDim2.fromOffset(0, cellHeight)
+    end
+
+    highlight.Visible = not narrow
+    for _, tab in ipairs(tabs) do
+        tab.button.BackgroundColor3 = Color3.new(1, 1, 1)
+        tab.button.BackgroundTransparency = narrow and tab == selected and 0.925 or 1
+    end
+
+    task.defer(updateHighlight)
+    layoutPreview()
+end
+
+local function fitScreen()
+    gesture = nil
+    watermark.Position = UDim2.new(1, 0, 0, 0)
+    local viewport = gui.AbsoluteSize
+    safeOrigin = Vector2.zero
+    safeSize = Vector2.new(math.max(1, viewport.X), math.max(1, viewport.Y))
+
+    local referenceScale = math.min(safeSize.X / 1568, safeSize.Y / 724)
+    menuScale.Scale = (1076 / 780) * referenceScale
+    window.Size = UDim2.fromOffset(780, 470)
+
+    window.Position = UDim2.fromOffset(
+        (safeSize.X - 1568 * referenceScale) / 2 + 224 * referenceScale,
+        (safeSize.Y - 724 * referenceScale) / 2 + 14 * referenceScale
+    )
+
+    layoutNavigation()
+end
+
+connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fitScreen)
+connect(window:GetPropertyChangedSignal("Size"), layoutNavigation)
+connect(UserInputService:GetPropertyChangedSignal("TouchEnabled"), layoutNavigation)
+
+for _, tab in ipairs(tabs) do
+    connect(tab.button.Activated, function()
+        task.defer(layoutNavigation)
+    end)
+end
+
+local function beginGesture(input, target, resize)
+    if input.UserInputType ~= Enum.UserInputType.MouseButton1
+        and input.UserInputType ~= Enum.UserInputType.Touch then return end
+    gesture = {
+        input = input, target = target, resize = resize,
+        origin = input.Position, position = target.Position,
+        size = target.Size, scale = menuScale.Scale,
+    }
+end
+
+dragHandle.ZIndex = 30
+dragHandle.Active = true
+connect(dragHandle.InputBegan, function(input)
+    if not window.Visible then return end
+    beginGesture(input, window, false)
+end)
+connect(grip.InputBegan, function(input) beginGesture(input, window, true) end)
+
+local function toggleMenu()
+    window.Visible = not window.Visible
+    gesture = nil
+    if window.Visible then clampWindow() end
+end
+
+connect(watermark.Activated, toggleMenu)
+
+connect(UserInputService.InputChanged, function(input)
+    if activeSlider then
+        if (input.UserInputType == Enum.UserInputType.MouseMovement
+            and activeSlider.input.UserInputType == Enum.UserInputType.MouseButton1)
+            or input == activeSlider.input then
+            activeSlider.update(input.Position.X)
+        end
+        return
+    end
+
+    if not gesture then return end
+    if input.UserInputType ~= Enum.UserInputType.MouseMovement
+        and input ~= gesture.input then return end
+
+    local delta = input.Position - gesture.origin
+    if gesture.resize then
+        local maximum = math.max(0.01, math.min(safeSize.X / 780, safeSize.Y / 470))
+        menuScale.Scale = math.clamp(gesture.scale + delta.X / 780,
+            math.min(0.2, maximum), maximum)
+        task.defer(updateHighlight)
+    else
+        local p = gesture.position
+        gesture.target.Position = UDim2.new(
+            p.X.Scale, p.X.Offset + delta.X,
+            p.Y.Scale, p.Y.Offset + delta.Y
+        )
+    end
+    clampWindow()
+end)
+
+connect(UserInputService.InputEnded, function(input)
+    if activeSlider and input == activeSlider.input then
+        activeSlider.scroll.ScrollingEnabled = true
+        activeSlider = nil
+    end
+    if gesture and input == gesture.input then gesture = nil end
+end)
+
+connect(UserInputService.WindowFocusReleased, function()
+    gesture = nil
+    activeSlider = nil
+    previewScroll.ScrollingEnabled = true
+end)
+
+connect(UserInputService.InputBegan, function(input)
+    if UserInputService:GetFocusedTextBox() then return end
+    if input.KeyCode == Enum.KeyCode.Insert then toggleMenu() end
+end)
+
+local frames, elapsed = 0, 0
+connect(RunService.Heartbeat, function(dt)
+    frames = frames + 1
+    elapsed = elapsed + dt
+    if elapsed < 0.5 then return end
+    values.FPS.Text = tostring(math.floor(frames / elapsed + 0.5))
+    frames, elapsed = 0, 0
+
+    local pingOK, ping = pcall(player.GetNetworkPing, player)
+    values.Ping.Text = pingOK and (math.floor(ping * 1000 + 0.5) .. "ms") or "-"
+
+    local memoryOK, memory = pcall(Stats.GetTotalMemoryUsageMb, Stats)
+    values.RAM.Text = memoryOK and (math.floor(memory + 0.5) .. "mb") or "-"
+
+    values.Time.Text = os.date("%H:%M")
+end)
+
+task.defer(fitScreen)
+
+local allDrawings = {}
+local drawingKinds = {
+    Square = { Filled = false, Thickness = 1, Visible = false },
+    Text = { Center = false, Outline = true, Size = 13, Visible = false },
+    Line = { Thickness = 1, Visible = false },
+    Circle = { Filled = false, Thickness = 1.5, NumSides = 128, Visible = false },
+    Triangle = { Visible = false },
+}
+
+local function newDrawing(kind)
+    if not hasDrawing then return nil end
+    local ok, obj = pcall(function() return Drawing.new(kind) end)
+    if not ok or not obj then return nil end
+
+    local defaults = drawingKinds[kind]
+    if defaults then
+        for key, value in pairs(defaults) do
+            pcall(function() obj[key] = value end)
+        end
+    end
+
+    pcall(function()
+        if kind == "Text" then
+            obj.Color = Color3.new(1, 1, 1)
+            obj.OutlineColor = Color3.new(0, 0, 0)
+            obj.Transparency = 1
+        elseif kind == "Square" or kind == "Line" then
+            obj.Color = Color3.new(1, 1, 1)
+            obj.Transparency = 1
+        elseif kind == "Circle" then
+            obj.Color = Color3.new(1, 1, 1)
+            obj.Transparency = 0.9
+        end
+    end)
+
+    table.insert(allDrawings, obj)
+    return obj
+end
+
+local function safeSet(obj, props)
+    if not obj then return end
+    for key, value in pairs(props) do
+        pcall(function() obj[key] = value end)
+    end
+end
+
+local function safeRemove(obj)
+    if not obj then return end
+    pcall(function() obj:Remove() end)
+end
+
+local detectTeamGroup
+
+local TEAM_ATTRS = {
+    "Team", "team", "TeamName", "TeamId", "Side", "Faction",
+    "Alignment", "PlayerTeam",
+}
+local TEAM_VALUE_NAMES = { "Team", "TeamValue", "Faction", "Side", "TeamId" }
+
+local function findTeamGroup(model)
+    if not model then return nil end
+    local node = model.Parent
+    local depth = 0
+    while node and node ~= Workspace and depth < 10 do
+        if node.Name == TEAM_GROUP_B then return "B" end
+        if node.Name == TEAM_GROUP_A then return "A" end
+        node = node.Parent
+        depth = depth + 1
+    end
+    return nil
+end
+
+local function findCharacterInWorkspace(plrName)
+    local a = Workspace:FindFirstChild(TEAM_GROUP_A)
+    if a then
+        local inner = a:FindFirstChild("IIoooIIl")
+        if inner then
+            local m = inner:FindFirstChild(plrName)
+            if m then return m, "A" end
+        end
+        local m = a:FindFirstChild(plrName)
+        if m then return m, "A" end
+    end
+    local b = Workspace:FindFirstChild(TEAM_GROUP_B)
+    if b then
+        local m = b:FindFirstChild(plrName)
+        if m then return m, "B" end
+    end
+    return nil, nil
+end
+
+local function getCharacter(plr)
+    if not plr then return nil end
+    local c = plr.Character
+    if c and c.Parent then return c end
+    local wc = findCharacterInWorkspace(plr.Name)
+    if wc then return wc end
+    return c
+end
+
+detectTeamGroup = function(plr)
+    if not plr then return nil end
+    local char = getCharacter(plr)
+    if char then
+        local g = findTeamGroup(char)
+        if g then return g end
+    end
+    return nil
+end
+
+local myTeam = nil
+local function getMyTeam()
+    if myTeam then return myTeam end
+    local c = player.Character
+    if c then
+        local g = findTeamGroup(c)
+        if g then myTeam = g; return myTeam end
+    end
+    local wc, g = findCharacterInWorkspace(player.Name)
+    if wc and g then myTeam = g; return g end
+    return nil
+end
+
+local function getAttr(obj, names)
+    if not obj then return nil end
+    for _, name in ipairs(names) do
+        local ok, v = pcall(function() return obj:GetAttribute(name) end)
+        if ok and v ~= nil then return v end
+    end
+    return nil
+end
+
+local function findValueBaseTeam(obj)
+    if not obj then return nil end
+    for _, name in ipairs(TEAM_VALUE_NAMES) do
+        local child = obj:FindFirstChild(name)
+        if child and (child:IsA("StringValue") or child:IsA("NumberValue")) then
+            return child.Value
+        end
+    end
+    return nil
+end
+
+local function findAnyTeamTag(plr)
+    if not plr then return nil end
+    local v = getAttr(plr, TEAM_ATTRS)
+    if v ~= nil then return v end
+    local char = plr.Character
+    if char then
+        v = getAttr(char, TEAM_ATTRS)
+        if v ~= nil then return v end
+        v = findValueBaseTeam(char)
+        if v ~= nil then return v end
+    end
+    return findValueBaseTeam(plr)
+end
+
+local TEAM_REG_KEYS = {
+    { "isFriendly", "getclient", "getEnemyTeam", "getPlayer", "players" },
+    { "isFriendly", "getEnemyTeam", "getPlayer" },
+    { "isFriendly", "getclient" },
+    { "isFriendly", "getEnemyTeam" },
+    { "isFriendly" },
+}
+
+local teamRegistry = nil
+local teamRegistryKeys = nil
+local teamRegistryLast = 0
+
+local function probeRegistry(reg)
+    if type(reg) ~= "table" or type(reg.isFriendly) ~= "function" then return false end
+    if reg.players ~= nil and type(reg.players) ~= "table" then return false end
+    local okA, a = pcall(reg.isFriendly, player)
+    local okB, b = pcall(reg.isFriendly, player)
+    if not okA or not okB or a ~= true or b ~= true then return false end
+
+    local counts = 0
+    local enemies = 0
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= player then
+            local okC, c = pcall(reg.isFriendly, plr)
+            if okC then
+                counts = counts + 1
+                if c == false then enemies = enemies + 1 end
+            end
+        end
+    end
+    if counts == 0 then return true end
+    return enemies > 0
+end
+
+local function findTeamRegistry()
+    if type(filtergc) ~= "function" then return nil, nil end
+    for _, keys in ipairs(TEAM_REG_KEYS) do
+        local ok, reg = pcall(filtergc, "table", { Keys = keys }, true)
+        if ok and probeRegistry(reg) then return reg, keys end
+    end
+    return nil, nil
+end
+
+local function refreshTeamRegistry()
+    local now = os.clock()
+    if now - teamRegistryLast < 1.5 then return end
+    teamRegistryLast = now
+    local reg, keys = findTeamRegistry()
+    teamRegistry = reg
+    teamRegistryKeys = keys
+end
+
+local playerCache = {}
+
+local function buildPlayerEntry(plr)
+    local char = getCharacter(plr)
+    if not char then return nil end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return nil end
+
+    local team = detectTeamGroup(plr)
+
+    local friendly = false
+    if plr == player then
+        friendly = true
+    elseif team and getMyTeam() then
+        friendly = team == getMyTeam()
+    elseif teamRegistry then
+        local ok, f = pcall(teamRegistry.isFriendly, plr)
+        if ok and f == true then friendly = true end
+    else
+        local m = findAnyTeamTag(player)
+        local t = findAnyTeamTag(plr)
+        if m ~= nil and t ~= nil then friendly = (m == t) end
+    end
+
+    local root = char:FindFirstChild("HumanoidRootPart")
+        or char:FindFirstChild("head")
+        or char:FindFirstChild("Head")
+        or char:FindFirstChild("Torso")
+    local head = char:FindFirstChild("head") or char:FindFirstChild("Head")
+    local torso = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+    local lLeg = char:FindFirstChild("Left Leg") or char:FindFirstChild("LeftUpperLeg")
+    local rLeg = char:FindFirstChild("Right Leg") or char:FindFirstChild("RightUpperLeg")
+    local lArm = char:FindFirstChild("Left Arm") or char:FindFirstChild("LeftUpperArm")
+    local rArm = char:FindFirstChild("Right Arm") or char:FindFirstChild("RightUpperArm")
+    local weapon = nil
+    local tool = char:FindFirstChildOfClass("Tool")
+    if tool then weapon = tool.Name end
+
+    return {
+        plr = plr,
+        char = char,
+        hum = hum,
+        team = team,
+        friendly = friendly,
+        root = root,
+        head = head,
+        torso = torso,
+        lLeg = lLeg,
+        rLeg = rLeg,
+        lArm = lArm,
+        rArm = rArm,
+        weapon = weapon,
+    }
+end
+
+local function refreshPlayerCache()
+    local newCache = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= player then
+            local ok, entry = pcall(buildPlayerEntry, plr)
+            if ok and entry then newCache[plr] = entry end
+        end
+    end
+    playerCache = newCache
+end
+
+local function isTeammate(plr)
+    if plr == player then return true end
+    local entry = playerCache[plr]
+    if entry then return entry.friendly end
+    return false
+end
+
+local function getCharacterCached(plr)
+    local entry = playerCache[plr]
+    if entry and entry.char and entry.char.Parent then return entry end
+    local newEntry = buildPlayerEntry(plr)
+    if newEntry then playerCache[plr] = newEntry end
+    return newEntry
+end
+
+local droneCache = {}
+local droneLastScan = 0
+local droneScanRunning = false
+
+local DRONE_MARKERS = {
+    "propellers", "Propellers", "motors", "Motors",
+    "RootAttachment", "rotors", "Rotors",
+}
+local DRONE_OWNER_ATTRS = {
+    "player", "Player", "owner", "Owner", "userid", "UserId",
+    "userId", "PlayerId", "PlayerName",
+}
+local DRONE_THROTTLE_ATTRS = { "throttle", "Throttle" }
+
+local function hasMarker(model, depth)
+    if not model or depth > 3 then return false end
+    if model:IsA("Model") or model:IsA("Folder") then
+        for _, name in ipairs(DRONE_MARKERS) do
+            if model:FindFirstChild(name) then return true end
+        end
+        for _, child in ipairs(model:GetChildren()) do
+            if child:IsA("Model") or child:IsA("Folder") then
+                if hasMarker(child, depth + 1) then return true end
+            end
+        end
+    end
+    return false
+end
+
+local function resolvePlayer(value)
+    if value == nil then return nil end
+    local vt = typeof(value)
+    if vt == "Instance" then
+        if value:IsA("Player") then return value end
+        if value:IsA("Model") then
+            local plr = Players:GetPlayerFromCharacter(value)
+            if plr then return plr end
+        end
+        return nil
+    end
+    if type(value) == "number" then
+        return Players:GetPlayerByUserId(value)
+    end
+    if type(value) == "string" then
+        local n = tonumber(value)
+        if n then
+            local p = Players:GetPlayerByUserId(n)
+            if p then return p end
+        end
+        local direct = Players:FindFirstChild(value)
+        if direct and direct:IsA("Player") then return direct end
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr.Name == value or plr.DisplayName == value then return plr end
+        end
+    end
+    return nil
+end
+
+local function findOwner(model)
+    for _, attr in ipairs(DRONE_OWNER_ATTRS) do
+        local ok, v = pcall(function() return model:GetAttribute(attr) end)
+        if ok and v ~= nil then return v end
+    end
+
+    local node = model.Parent
+    local depth = 0
+    while node and depth < 3 do
+        if node:IsA("Model") or node:IsA("Folder") then
+            for _, attr in ipairs(DRONE_OWNER_ATTRS) do
+                local ok, v = pcall(function() return node:GetAttribute(attr) end)
+                if ok and v ~= nil then return v end
+            end
+        end
+        node = node.Parent
+        depth = depth + 1
+    end
+
+    for _, child in ipairs(model:GetChildren()) do
+        if child:IsA("ObjectValue") or child:IsA("StringValue") or child:IsA("NumberValue") then
+            local lower = string.lower(child.Name)
+            if string.find(lower, "owner", 1, true)
+                or string.find(lower, "player", 1, true)
+                or string.find(lower, "user", 1, true) then
+                local ok, v = pcall(function() return child.Value end)
+                if ok and v ~= nil then return v end
+            end
+        end
+    end
+    return nil
+end
+
+local function findFirstPart(model)
+    if not model then return nil end
+    for _, child in ipairs(model:GetChildren()) do
+        if child:IsA("BasePart") then return child end
+    end
+    for _, child in ipairs(model:GetDescendants()) do
+        if child:IsA("BasePart") then return child end
+    end
+    return nil
+end
+
+local function analyzeDrone(model)
+    if not model or not model:IsA("Model") then return nil end
+    if model:FindFirstChildOfClass("Humanoid") then return nil end
+    if Players:GetPlayerFromCharacter(model) then return nil end
+
+    local score = 0
+    local nameMatch = false
+    local hasOwner = false
+    local hasThrottle = false
+    local hasMarker = false
+    local hasRoot = false
+
+    local lower = string.lower(model.Name)
+    if string.find(lower, "drone", 1, true) or string.find(lower, "fpv", 1, true) then
+        score = score + 2
+        nameMatch = true
+    end
+
+    for _, attr in ipairs(DRONE_OWNER_ATTRS) do
+        local ok, v = pcall(function() return model:GetAttribute(attr) end)
+        if ok and v ~= nil then score = score + 2; hasOwner = true; break end
+    end
+
+    for _, attr in ipairs(DRONE_THROTTLE_ATTRS) do
+        local ok, v = pcall(function() return model:GetAttribute(attr) end)
+        if ok and v ~= nil then score = score + 2; hasThrottle = true; break end
+    end
+
+    if hasMarker(model, 0) then score = score + 2; hasMarker = true end
+
+    if model.PrimaryPart and model.PrimaryPart:FindFirstChild("RootAttachment") then
+        score = score + 1
+        hasMarker = true
+        hasRoot = true
+    end
+
+    if nameMatch then score = score + 1 end
+
+    local candidate = (hasOwner and hasThrottle and (hasMarker or hasRoot))
+        or (nameMatch and hasThrottle)
+        or (nameMatch and score >= 4)
+        or (score >= 6)
+
+    if not candidate then return nil end
+
+    local ownerVal = findOwner(model)
+    if ownerVal == nil then return nil end
+    local owner = resolvePlayer(ownerVal)
+    if not owner then return nil end
+
+    local part = model.PrimaryPart or model:FindFirstChild("head")
+        or model:FindFirstChild("Head") or findFirstPart(model)
+    if not part or not part:IsA("BasePart") then return nil end
+
+    return {
+        model = model,
+        part = part,
+        owner = owner,
+        score = score,
+        friendly = isTeammate(owner),
+    }
+end
+
+local function scanDrones()
+    local found = {}
+    local playerChars = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.Character then playerChars[plr.Character] = true end
+        local wc = findCharacterInWorkspace(plr.Name)
+        if wc then playerChars[wc] = true end
+    end
+
+    local queue = {}
+    local processed = 0
+    local maxNodes = 20000
+
+    for _, child in ipairs(Workspace:GetChildren()) do
+        if child:IsA("Model") or child:IsA("Folder") or child:IsA("BasePart") then
+            table.insert(queue, child)
+        end
+    end
+
+    local head = 1
+    while head <= #queue and processed < maxNodes do
+        local node = queue[head]
+        head = head + 1
+        processed = processed + 1
+
+        if node and node.Parent then
+            local isModel = false
+            pcall(function() isModel = node:IsA("Model") end)
+            local descends = false
+
+            if isModel then
+                if not playerChars[node] then
+                    local info = nil
+                    pcall(function() info = analyzeDrone(node) end)
+                    if info then
+                        table.insert(found, info)
+                    else
+                        descends = true
+                    end
+                end
+            elseif node:IsA("Folder") then
+                descends = true
+            end
+
+            if descends then
+                local ok, kids = pcall(function() return node:GetChildren() end)
+                if ok and kids then
+                    for _, child in ipairs(kids) do
+                        if child:IsA("Model") or child:IsA("Folder") or child:IsA("BasePart") then
+                            table.insert(queue, child)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return found
+end
+
+function runDroneScan()
+    if droneScanRunning then return end
+    droneScanRunning = true
+    task.spawn(function()
+        local ok, result = pcall(scanDrones)
+        if ok and type(result) == "table" then
+            droneCache = result
+            droneLastScan = os.clock()
+        end
+        droneScanRunning = false
+    end)
+end
+
+local acRemote = nil
+local terminateRemote = nil
+local reportRemote = nil
+local lookRemote = nil
+local bulletRemotes = {}
+local registryRemotes = {}
+local namaecallHooked = false
+local acActive = false
+local acFindings = {
+    suspicious = {},
+    registry = {},
+    terminated = false,
+}
+
+local function detectAnticheat(verbose)
+    acFindings.suspicious = {}
+    acFindings.registry = {}
+
+    acRemote = ReplicatedStorage:FindFirstChild("4u39fh-2n84bf-1mfo4b")
+    if acRemote then
+        table.insert(acFindings.suspicious, "4u39fh-2n84bf-1mfo4b")
+    end
+
+    local network = ReplicatedStorage:FindFirstChild("network")
+    if network then
+        terminateRemote = network:FindFirstChild("terminate")
+        reportRemote = network:FindFirstChild("report")
+        lookRemote = network:FindFirstChild("characterLookvector")
+
+        for _, name in ipairs({
+            "bullet", "bullet2", "buIIet", "buIIet2",
+            "projectile", "projectileVisible",
+        }) do
+            local r = network:FindFirstChild(name)
+            if r then table.insert(bulletRemotes, r) end
+        end
+
+        for _, name in ipairs({
+            "loadregistry", "setClientRegistryData",
+            "requestClientKeys", "secret", "secret2",
+        }) do
+            local r = network:FindFirstChild(name)
+            if r then
+                table.insert(registryRemotes, { name = name, instance = r })
+                table.insert(acFindings.registry, name)
+            end
+        end
+    end
+
+    acActive = acRemote ~= nil or #acFindings.registry > 0
+
+    if verbose then
+        print("=== Anticheat detection ===")
+        print("Suspicious remotes:", #acFindings.suspicious)
+        for _, n in ipairs(acFindings.suspicious) do print(" -", n) end
+        print("Registry remotes:", #acFindings.registry)
+        for _, n in ipairs(acFindings.registry) do print(" -", n) end
+        print("Bullet remotes:", #bulletRemotes)
+        print("Terminate present:", terminateRemote ~= nil)
+        print("Look remote present:", lookRemote ~= nil)
+    end
+
+    return acFindings
+end
+
+local aimBusy = false
+local originalRaycast = nil
+local currentAimTargetName = nil
+local currentAimTarget = nil
+local triggerLastFire = 0
+
+local function getRaycastParams()
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    local filter = {}
+    if player.Character then table.insert(filter, player.Character) end
+    if camera then table.insert(filter, camera) end
+    params.FilterDescendantsInstances = filter
+    return params
+end
+
+local function isPartVisible(part)
+    if not part or not camera then return true end
+    local origin = camera.CFrame.Position
+    local delta = part.Position - origin
+    if delta.Magnitude < 0.5 then return true end
+
+    local params = getRaycastParams()
+    local wasBusy = aimBusy
+    aimBusy = true
+    local ok, result = pcall(function()
+        return Workspace:Raycast(origin, delta, params)
+    end)
+    aimBusy = wasBusy
+
+    if not ok or not result then return true end
+    local hit = result.Instance
+    if hit == part then return true end
+    local parent = part.Parent
+    if parent and hit:IsDescendantOf(parent) then return true end
+    return false
+end
+
+local function getHitboxPart(entry, hitbox)
+    if hitbox == "head" then
+        return entry.head or entry.root or entry.torso
+    elseif hitbox == "chest" then
+        return entry.torso or entry.root or entry.head
+    elseif hitbox == "pelvis" then
+        return entry.root or entry.torso or entry.head
+    end
+    return entry.head or entry.root or entry.torso
+end
+
+local function acquireTarget(origin)
+    if not camera then return nil end
+    if not Config.Aim.Enabled then return nil end
+
+    if Config.Antiban.RateLimitAim then
+        local now = os.clock()
+        if now - (getgenv()._lastAimTick or 0) < 0.005 then return nil end
+        getgenv()._lastAimTick = now
+    end
+
+    local vp = camera.ViewportSize
+    local cx = vp.X * 0.5
+    local cy = vp.Y * 0.5
+    local camPos = camera.CFrame.Position
+    local look = camera.CFrame.LookVector
+
+    local flatLook = Vector3.new(look.X, 0, look.Z)
+    if flatLook.Magnitude < 0.001 then flatLook = Vector3.new(0, 0, -1) end
+    flatLook = flatLook.Unit
+
+    local bestScore = math.huge
+    local bestPoint = nil
+    local bestName = nil
+
+    local maxDist = Config.Aim.MaxDistance
+    local fov = Config.Aim.Fov
+    local hitboxPref = Config.Aim.Hitbox
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= player then
+            local entry = getCharacterCached(plr)
+            if entry and entry.hum and entry.hum.Health > 0 then
+                if not (Config.Aim.TeamCheck and isTeammate(plr)) then
+                    local part = getHitboxPart(entry, hitboxPref)
+                    if part and part:IsA("BasePart") then
+                        local worldPos = part.Position
+                        if Config.Aim.Prediction and Config.Aim.Smoothing > 0 then
+                            local vel = entry.root and entry.root.AssemblyLinearVelocity or Vector3.zero
+                            worldPos = worldPos + vel * 0.1
+                        end
+                        local dist = (worldPos - camPos).Magnitude
+                        if dist <= maxDist then
+                            local okp, screen = pcall(function()
+                                return camera:WorldToViewportPoint(worldPos)
+                            end)
+                            if okp and screen and screen.Z > 0.05 then
+                                local dx = screen.X - cx
+                                local dy = screen.Y - cy
+                                local sd = math.sqrt(dx * dx + dy * dy)
+                                if sd < fov then
+                                    local visible = true
+                                    if Config.Aim.VisibleCheck or Config.Aim.WallCheck then
+                                        visible = isPartVisible(part)
+                                    end
+                                    if visible then
+                                        local priority = Config.Aim.Priority
+                                        local score = sd
+                                        if priority == "distance" then score = dist end
+                                        if priority == "hp" then
+                                            score = math.clamp(1 - entry.hum.Health / math.max(1, entry.hum.MaxHealth), 0, 1) * 1000
+                                                + sd
+                                        end
+                                        if score < bestScore then
+                                            bestScore = score
+                                            bestPoint = worldPos
+                                            bestName = plr.Name
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if Config.Aim.FpvDrones then
+        for _, drone in ipairs(droneCache) do
+            local model = drone.model
+            if model and model.Parent and drone.part and drone.part.Parent then
+                local skip = false
+                if Config.Aim.TeamCheck and drone.owner and isTeammate(drone.owner) then
+                    skip = true
+                end
+                if not skip then
+                    local worldPos = drone.part.Position
+                    local dist = (worldPos - camPos).Magnitude
+                    if dist <= maxDist then
+                        local flatDelta = Vector3.new(worldPos.X - camPos.X, 0, worldPos.Z - camPos.Z)
+                        local behind = false
+                        if flatDelta.Magnitude > 0.001 then
+                            behind = flatLook:Dot(flatDelta.Unit) < -0.1
+                        end
+
+                        if behind then
+                            if dist < Config.Aim.DroneRadius then
+                                local score = -100000 - dist
+                                if score < bestScore then
+                                    bestScore = score
+                                    bestPoint = worldPos
+                                    bestName = model.Name
+                                end
+                            end
+                        else
+                            local okp, screen = pcall(function()
+                                return camera:WorldToViewportPoint(worldPos)
+                            end)
+                            if okp and screen and screen.Z > 0.05 then
+                                local dx = screen.X - cx
+                                local dy = screen.Y - cy
+                                local sd = math.sqrt(dx * dx + dy * dy)
+                                if sd < fov then
+                                    local visible = true
+                                    if Config.Aim.VisibleCheck then
+                                        visible = isPartVisible(drone.part)
+                                    end
+                                    if visible then
+                                        local score = sd + 30
+                                        if score < bestScore then
+                                            bestScore = score
+                                            bestPoint = worldPos
+                                            bestName = model.Name
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if bestName then
+        currentAimTargetName = bestName
+    end
+    currentAimTarget = bestPoint
+    return bestPoint
+end
+
+local function installRaycastHook()
+    if type(hookfunction) ~= "function" then return false end
+    local ok = pcall(function()
+        originalRaycast = hookfunction(Workspace.Raycast, function(self, origin, direction, params)
+            if not Config.Aim.Enabled then
+                return originalRaycast(self, origin, direction, params)
+            end
+            if type(checkcaller) == "function" then
+                local ok2, isCaller = pcall(checkcaller)
+                if ok2 and isCaller then
+                    return originalRaycast(self, origin, direction, params)
+                end
+            end
+            if aimBusy then
+                return originalRaycast(self, origin, direction, params)
+            end
+            aimBusy = true
+            local ok3, target = pcall(acquireTarget, origin)
+            aimBusy = false
+            if ok3 and target then
+                local delta = target - origin
+                if delta.Magnitude > 0.001 then
+                    return originalRaycast(self, origin, delta.Unit * direction.Magnitude, params)
+                end
+            end
+            return originalRaycast(self, origin, direction, params)
+        end)
+    end)
+    return ok
+end
+
+local function installLookSpoof()
+    if type(getrawmetatable) ~= "function" then return false end
+    local ok = pcall(function()
+        local mt = getrawmetatable(game)
+        local orig = mt.__namecall
+
+        setreadonly(mt, false)
+        mt.__namecall = newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            if method == "FireServer" then
+                if self == acRemote and Config.Antiban.SilenceRemote then
+                    return
+                end
+                if self == terminateRemote and Config.Antiban.BlockTerminate then
+                    return
+                end
+                if self == reportRemote and Config.Antiban.AntiReport then
+                    return
+                end
+
+                if self == lookRemote and Config.Antiban.SpoofLook and Config.Aim.Enabled then
+                    local args = { ... }
+                    if currentAimTarget and camera then
+                        local dir = (currentAimTarget - camera.CFrame.Position)
+                        if dir.Magnitude > 0.001 then
+                            for i = 1, #args do
+                                if typeof(args[i]) == "Vector3" then
+                                    args[i] = dir.Unit
+                                end
+                            end
+                            return orig(self, table.unpack(args))
+                        end
+                    end
+                end
+
+                if Config.Antiban.HeartbeatJitter then
+                    for _, bullet in ipairs(bulletRemotes) do
+                        if self == bullet then
+                            if math.random() < 0.02 then
+                                task.wait(math.random() * 0.01)
+                            end
+                            break
+                        end
+                    end
+                end
+            end
+            return orig(self, ...)
+        end)
+        setreadonly(mt, true)
+        namaecallHooked = true
+    end)
+    return ok
+end
+
+local function applyAntiban()
+    if Config.Antiban.SilenceRemote or Config.Antiban.BlockTerminate or Config.Antiban.SpoofLook
+        or Config.Antiban.AntiReport or Config.Antiban.HeartbeatJitter then
+        if not namaecallHooked then installLookSpoof() end
+    end
+
+    if Config.Antiban.MonitorRegistry then
+        for _, entry in ipairs(registryRemotes) do
+            pcall(function()
+                local r = entry.instance
+                if r:IsA("RemoteFunction") then
+                    if not r.__monitored then
+                        r.__monitored = true
+                        r.OnClientInvoke = function(...)
+                            if Config.Antiban.MonitorRegistry then
+                                print("[AC] " .. entry.name .. " OnClientInvoke args:", ...)
+                            end
+                            return nil
+                        end
+                    end
+                elseif r:IsA("RemoteEvent") then
+                    if not r.__monitored then
+                        r.__monitored = true
+                        connect(r.OnClientEvent, function(...)
+                            if Config.Antiban.MonitorRegistry then
+                                print("[AC] " .. entry.name .. " OnClientEvent:", ...)
+                            end
+                        end)
+                    end
+                end
+            end)
+        end
+    end
+end
+
+local triggerLastFire = 0
+local function triggerTick()
+    if not Config.Trigger.Enabled then return end
+
+    local now = os.clock()
+    local minDelay = Config.Trigger.Delay / 1000
+    if Config.Antiban.RateLimitTrigger then
+        minDelay = math.max(minDelay, 0.08)
+    end
+    if Config.Antiban.HeartbeatJitter then
+        minDelay = minDelay + math.random() * 0.02
+    end
+    if now - triggerLastFire < minDelay then return end
+
+    local char = player.Character
+    if not char then return end
+    local tool = char:FindFirstChildOfClass("Tool")
+    if not tool then return end
+
+    if not camera then return end
+    local vp = camera.ViewportSize
+    local cx = vp.X * 0.5
+    local cy = vp.Y * 0.5
+    local camPos = camera.CFrame.Position
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= player then
+            if not (Config.Trigger.TeamCheck and isTeammate(plr)) then
+                local entry = getCharacterCached(plr)
+                if entry and entry.hum and entry.hum.Health > 0 then
+                    local part
+                    if Config.Trigger.HeadshotOnly then
+                        part = entry.head
+                    else
+                        part = getHitboxPart(entry, Config.Aim.Hitbox)
+                    end
+                    if part and part:IsA("BasePart") then
+                        local dist = (part.Position - camPos).Magnitude
+                        if dist <= Config.Trigger.Range then
+                            local okp, screen = pcall(function()
+                                return camera:WorldToViewportPoint(part.Position)
+                            end)
+                            if okp and screen and screen.Z > 0.05 then
+                                local dx = screen.X - cx
+                                local dy = screen.Y - cy
+                                local sd = math.sqrt(dx * dx + dy * dy)
+                                if sd < Config.Trigger.PixelThreshold then
+                                    local visible = true
+                                    if Config.Trigger.VisibleCheck then
+                                        visible = isPartVisible(part)
+                                    end
+                                    if visible then
+                                        triggerLastFire = now
+                                        pcall(function() tool:Activate() end)
+                                        return
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+local fovCircle = nil
+local function ensureFovCircle()
+    if not hasDrawing then return nil end
+    if fovCircle then return fovCircle end
+    local ok, circle = pcall(function() return Drawing.new("Circle") end)
+    if not ok or not circle then return nil end
+    pcall(function()
+        circle.Color = Color3.new(1, 1, 1)
+        circle.Filled = false
+        circle.Thickness = 1.5
+        circle.Transparency = 0.9
+        circle.NumSides = 128
+        circle.Visible = false
+    end)
+    table.insert(allDrawings, circle)
+    fovCircle = circle
+    return fovCircle
+end
+
+local function updateFovCircle()
+    local circle = ensureFovCircle()
+    if not circle then return end
+    local show = Config.Aim.Enabled and Config.Interface.ShowFov
+    if not show then
+        pcall(function() circle.Visible = false end)
+        return
+    end
+    if not camera then
+        pcall(function() circle.Visible = false end)
+        return
+    end
+    local vp = camera.ViewportSize
+    pcall(function()
+        circle.Position = Vector2.new(vp.X * 0.5, vp.Y * 0.5)
+        circle.Radius = Config.Aim.Fov
+        circle.Visible = true
+    end)
+end
+
+local crosshairLines = {}
+local function updateCrosshair()
+    if not hasDrawing then return end
+    if not Config.Interface.ShowCrosshair then
+        for i = 1, 4 do
+            if crosshairLines[i] then
+                safeSet(crosshairLines[i], { Visible = false })
+            end
+        end
+        return
+    end
+    if not camera then return end
+    local vp = camera.ViewportSize
+    local cx = vp.X * 0.5
+    local cy = vp.Y * 0.5
+    local size = Config.Interface.CrosshairSize
+    local gap = 3
+    local thick = 1
+
+    for i = 1, 4 do
+        if not crosshairLines[i] then
+            crosshairLines[i] = newDrawing("Line")
+        end
+    end
+
+    safeSet(crosshairLines[1], {
+        Visible = true,
+        From = Vector2.new(cx - gap - size, cy),
+        To = Vector2.new(cx - gap, cy),
+        Color = Color3.new(1, 1, 1),
+        Thickness = thick,
+        Transparency = 0.9,
+    })
+    safeSet(crosshairLines[2], {
+        Visible = true,
+        From = Vector2.new(cx + gap, cy),
+        To = Vector2.new(cx + gap + size, cy),
+        Color = Color3.new(1, 1, 1),
+        Thickness = thick,
+        Transparency = 0.9,
+    })
+    safeSet(crosshairLines[3], {
+        Visible = true,
+        From = Vector2.new(cx, cy - gap - size),
+        To = Vector2.new(cx, cy - gap),
+        Color = Color3.new(1, 1, 1),
+        Thickness = thick,
+        Transparency = 0.9,
+    })
+    safeSet(crosshairLines[4], {
+        Visible = true,
+        From = Vector2.new(cx, cy + gap),
+        To = Vector2.new(cx, cy + gap + size),
+        Color = Color3.new(1, 1, 1),
+        Thickness = thick,
+        Transparency = 0.9,
+    })
+end
+
+local function getBbox(cameraRef, model)
+    local ok, cf, size = pcall(function()
+        local c, s = model:GetBoundingBox()
+        return c, s
+    end)
+    if not ok or not cf or not size then return nil end
+
+    local sx = size.X * 0.5
+    local sy = size.Y * 0.5
+    local sz = size.Z * 0.5
+    local corners = {
+        cf * Vector3.new(-sx, -sy, -sz),
+        cf * Vector3.new( sx, -sy, -sz),
+        cf * Vector3.new( sx, -sy,  sz),
+        cf * Vector3.new(-sx, -sy,  sz),
+        cf * Vector3.new(-sx,  sy, -sz),
+        cf * Vector3.new( sx,  sy, -sz),
+        cf * Vector3.new( sx,  sy,  sz),
+        cf * Vector3.new(-sx,  sy,  sz),
+    }
+
+    local minX, minY, maxX, maxY = math.huge, math.huge, -math.huge, -math.huge
+    local any = false
+    for i = 1, 8 do
+        local okp, sp = pcall(function()
+            return cameraRef:WorldToViewportPoint(corners[i])
+        end)
+        if okp and sp and sp.Z > 0.05 then
+            any = true
+            if sp.X < minX then minX = sp.X end
+            if sp.X > maxX then maxX = sp.X end
+            if sp.Y < minY then minY = sp.Y end
+            if sp.Y > maxY then maxY = sp.Y end
+        end
+    end
+    if not any then return nil end
+    return minX, minY, maxX, maxY, corners
+end
+
+local function clampBox(minX, minY, maxX, maxY)
+    local w = maxX - minX
+    local h = maxY - minY
+    if h < 8 then h = 8 end
+    if w < h * 0.45 then w = h * 0.45 end
+    if w > h * 2.2 then w = h * 2.2 end
+    local cx = (minX + maxX) * 0.5
+    local cy = (minY + maxY) * 0.5
+    return cx - w * 0.5, cy - h * 0.5, w, h
+end
+
+local playerEspSlots = {}
+local function ensurePlayerSlot(plr)
+    local slot = playerEspSlots[plr]
+    if slot then return slot end
+    slot = {
+        box = newDrawing("Square"),
+        boxOutline = newDrawing("Square"),
+        boxFill = newDrawing("Square"),
+        name = newDrawing("Text"),
+        distance = newDrawing("Text"),
+        healthBg = newDrawing("Square"),
+        healthFg = newDrawing("Square"),
+        hpText = newDrawing("Text"),
+        weapon = newDrawing("Text"),
+        headCircle = newDrawing("Circle"),
+        tracer = newDrawing("Line"),
+        skeleton = {},
+        lastVisible = false,
+        emptyFrames = 0,
+        lastX = nil,
+        lastY = nil,
+        lastW = nil,
+        lastH = nil,
+    }
+    for i = 1, 12 do
+        slot.skeleton[i] = newDrawing("Line")
+    end
+    playerEspSlots[plr] = slot
+    return slot
+end
+
+local function hidePlayerSlot(slot)
+    if not slot.lastVisible then return end
+    safeSet(slot.box, { Visible = false })
+    safeSet(slot.boxOutline, { Visible = false })
+    safeSet(slot.boxFill, { Visible = false })
+    safeSet(slot.name, { Visible = false })
+    safeSet(slot.distance, { Visible = false })
+    safeSet(slot.healthBg, { Visible = false })
+    safeSet(slot.healthFg, { Visible = false })
+    safeSet(slot.hpText, { Visible = false })
+    safeSet(slot.weapon, { Visible = false })
+    safeSet(slot.headCircle, { Visible = false })
+    safeSet(slot.tracer, { Visible = false })
+    for i = 1, 12 do
+        safeSet(slot.skeleton[i], { Visible = false })
+    end
+    slot.lastVisible = false
+end
+
+local function smoothValue(last, current)
+    if not last then return current end
+    local ratio = current / math.max(0.001, last)
+    if ratio > 2.5 or ratio < (1 / 2.5) then
+        return last + (current - last) * 0.5
+    end
+    return current
+end
+
+local function renderPlayerSlot(slot, entry)
+    if not camera then hidePlayerSlot(slot); return end
+    if not entry.hum or entry.hum.Health <= 0 then
+        if Config.Visuals.PlayerEsp.IgnoreDowned then
+            slot.emptyFrames = slot.emptyFrames + 1
+            if slot.emptyFrames >= 3 then hidePlayerSlot(slot) end
+            return
+        end
+    end
+
+    if Config.Visuals.PlayerEsp.TeamCheck and entry.friendly then
+        hidePlayerSlot(slot)
+        slot.emptyFrames = 0
+        return
+    end
+
+    local root = entry.root
+    if not root or not root:IsA("BasePart") then
+        slot.emptyFrames = slot.emptyFrames + 1
+        if slot.emptyFrames >= 3 then hidePlayerSlot(slot) end
+        return
+    end
+
+    local dist = (root.Position - camera.CFrame.Position).Magnitude
+    if dist > Config.Visuals.PlayerEsp.MaxDistance then
+        slot.emptyFrames = slot.emptyFrames + 1
+        if slot.emptyFrames >= 3 then hidePlayerSlot(slot) end
+        return
+    end
+
+    local minX, minY, maxX, maxY, corners = getBbox(camera, entry.char)
+    if not minX then
+        slot.emptyFrames = slot.emptyFrames + 1
+        if slot.emptyFrames >= 3 then hidePlayerSlot(slot) end
+        return
+    end
+
+    slot.emptyFrames = 0
+
+    local bx, by, bw, bh = clampBox(minX, minY, maxX, maxY)
+    bw = smoothValue(slot.lastW, bw)
+    bh = smoothValue(slot.lastH, bh)
+    local cx = (minX + maxX) * 0.5
+    local cy = (minY + maxY) * 0.5
+    bx = cx - bw * 0.5
+    by = cy - bh * 0.5
+
+    slot.lastX = bx
+    slot.lastY = by
+    slot.lastW = bw
+    slot.lastH = bh
+
+    if Config.Visuals.PlayerEsp.FilledBox and slot.boxFill then
+        safeSet(slot.boxFill, {
+            Visible = true,
+            Position = Vector2.new(bx, by),
+            Size = Vector2.new(bw, bh),
+            Color = Color3.new(1, 1, 1),
+            Filled = true,
+            Thickness = 0,
+            Transparency = 0.85,
+        })
+    else
+        safeSet(slot.boxFill, { Visible = false })
+    end
+
+    if Config.Visuals.PlayerEsp.Box and slot.box then
+        safeSet(slot.box, {
+            Visible = true,
+            Position = Vector2.new(bx, by),
+            Size = Vector2.new(bw, bh),
+            Color = Color3.new(1, 1, 1),
+            Thickness = 1,
+            Filled = false,
+            Transparency = 1,
+        })
+        safeSet(slot.boxOutline, {
+            Visible = true,
+            Position = Vector2.new(bx - 1, by - 1),
+            Size = Vector2.new(bw + 2, bh + 2),
+            Color = Color3.new(0, 0, 0),
+            Thickness = 1,
+            Filled = false,
+            Transparency = 0.35,
+        })
+    else
+        safeSet(slot.box, { Visible = false })
+        safeSet(slot.boxOutline, { Visible = false })
+    end
+
+    if Config.Visuals.PlayerEsp.Health and slot.healthBg and slot.healthFg then
+        local hp = math.clamp(entry.hum.Health / math.max(1, entry.hum.MaxHealth), 0, 1)
+        local barX = bx - 6
+        local barY = by
+        local barH = bh
+        safeSet(slot.healthBg, {
+            Visible = true,
+            Position = Vector2.new(barX, barY),
+            Size = Vector2.new(3, barH),
+            Color = Color3.new(0, 0, 0),
+            Filled = true,
+            Transparency = 0.3,
+        })
+        local fgH = barH * hp
+        safeSet(slot.healthFg, {
+            Visible = true,
+            Position = Vector2.new(barX, barY + barH - fgH),
+            Size = Vector2.new(3, fgH),
+            Color = Color3.fromHSV(hp * 0.33, 1, 1),
+            Filled = true,
+            Transparency = 0,
+        })
+    else
+        safeSet(slot.healthBg, { Visible = false })
+        safeSet(slot.healthFg, { Visible = false })
+    end
+
+    if Config.Visuals.PlayerEsp.HpText and slot.hpText then
+        safeSet(slot.hpText, {
+            Visible = true,
+            Text = tostring(math.floor(entry.hum.Health)) .. "/" .. tostring(math.floor(entry.hum.MaxHealth)),
+            Color = Color3.new(1, 1, 1),
+            Size = 11,
+            Center = true,
+            Outline = true,
+            OutlineColor = Color3.new(0, 0, 0),
+            Position = Vector2.new(bx + bw * 0.5, by + bh + 16),
+            Transparency = 1,
+        })
+    else
+        safeSet(slot.hpText, { Visible = false })
+    end
+
+    if Config.Visuals.PlayerEsp.Name and slot.name then
+        safeSet(slot.name, {
+            Visible = true,
+            Text = entry.plr.Name,
+            Color = Color3.new(1, 1, 1),
+            Size = 13,
+            Center = true,
+            Outline = true,
+            OutlineColor = Color3.new(0, 0, 0),
+            Position = Vector2.new(bx + bw * 0.5, by - 16),
+            Transparency = 1,
+        })
+    else
+        safeSet(slot.name, { Visible = false })
+    end
+
+    if Config.Visuals.PlayerEsp.Distance and slot.distance then
+        safeSet(slot.distance, {
+            Visible = true,
+            Text = string.format("%dm", math.floor(dist + 0.5)),
+            Color = Color3.new(1, 1, 1),
+            Size = 13,
+            Center = true,
+            Outline = true,
+            OutlineColor = Color3.new(0, 0, 0),
+            Position = Vector2.new(bx + bw * 0.5, by + bh + 2),
+            Transparency = 1,
+        })
+    else
+        safeSet(slot.distance, { Visible = false })
+    end
+
+    if Config.Visuals.PlayerEsp.Weapon and slot.weapon then
+        if entry.weapon then
+            safeSet(slot.weapon, {
+                Visible = true,
+                Text = entry.weapon,
+                Color = Color3.new(1, 1, 1),
+                Size = 11,
+                Center = true,
+                Outline = true,
+                OutlineColor = Color3.new(0, 0, 0),
+                Position = Vector2.new(bx + bw * 0.5, by + bh + 30),
+                Transparency = 1,
+            })
+        else
+            safeSet(slot.weapon, { Visible = false })
+        end
+    else
+        safeSet(slot.weapon, { Visible = false })
+    end
+
+    if Config.Visuals.PlayerEsp.HeadCircle and slot.headCircle and entry.head then
+        local okp, hp = pcall(function()
+            return camera:WorldToViewportPoint(entry.head.Position)
+        end)
+        if okp and hp and hp.Z > 0.05 then
+            local radius = math.clamp(bw * 0.15, 4, 30)
+            safeSet(slot.headCircle, {
+                Visible = true,
+                Position = Vector2.new(hp.X, hp.Y),
+                Radius = radius,
+                Color = Color3.new(1, 1, 1),
+                Thickness = 1,
+                Filled = false,
+                Transparency = 0.9,
+                NumSides = 32,
+            })
+        else
+            safeSet(slot.headCircle, { Visible = false })
+        end
+    else
+        safeSet(slot.headCircle, { Visible = false })
+    end
+
+    if Config.Visuals.PlayerEsp.Tracer and slot.tracer then
+        local vp = camera.ViewportSize
+        safeSet(slot.tracer, {
+            Visible = true,
+            From = Vector2.new(vp.X * 0.5, vp.Y),
+            To = Vector2.new(bx + bw * 0.5, by + bh * 0.5),
+            Color = Color3.new(1, 1, 1),
+            Thickness = 1,
+            Transparency = 0.6,
+        })
+    else
+        safeSet(slot.tracer, { Visible = false })
+    end
+
+    if Config.Visuals.PlayerEsp.Skeleton then
+        local parts = {
+            entry.head, entry.torso, entry.lArm, entry.rArm, entry.lLeg, entry.rLeg, entry.root,
+        }
+        local projected = {}
+        for i, p in ipairs(parts) do
+            if p and p:IsA("BasePart") then
+                local okp, sp = pcall(function()
+                    return camera:WorldToViewportPoint(p.Position)
+                end)
+                if okp and sp and sp.Z > 0.05 then
+                    projected[i] = Vector2.new(sp.X, sp.Y)
+                end
+            end
+        end
+
+        local bones = {
+            { 1, 2 }, { 2, 3 }, { 2, 4 }, { 2, 5 }, { 2, 6 }, { 2, 7 },
+        }
+        local idx = 0
+        for _, bone in ipairs(bones) do
+            local a = projected[bone[1]]
+            local b = projected[bone[2]]
+            idx = idx + 1
+            if a and b and slot.skeleton[idx] then
+                safeSet(slot.skeleton[idx], {
+                    Visible = true,
+                    From = a,
+                    To = b,
+                    Color = Color3.new(1, 1, 1),
+                    Thickness = 1,
+                    Transparency = 0.8,
+                })
+            else
+                safeSet(slot.skeleton[idx], { Visible = false })
+            end
+        end
+        for i = idx + 1, 12 do
+            if slot.skeleton[i] then safeSet(slot.skeleton[i], { Visible = false }) end
+        end
+    else
+        for i = 1, 12 do
+            if slot.skeleton[i] then safeSet(slot.skeleton[i], { Visible = false }) end
+        end
+    end
+
+    slot.lastVisible = true
+end
+
+local droneEspSlots = {}
+local function ensureDroneSlot(model)
+    local slot = droneEspSlots[model]
+    if slot then return slot end
+    slot = {
+        lines = {},
+        name = newDrawing("Text"),
+        distance = newDrawing("Text"),
+        owner = newDrawing("Text"),
+        tracer = newDrawing("Line"),
+        lastVisible = false,
+        emptyFrames = 0,
+    }
+    for i = 1, 12 do
+        slot.lines[i] = newDrawing("Line")
+    end
+    droneEspSlots[model] = slot
+    return slot
+end
+
+local function hideDroneSlot(slot)
+    if not slot.lastVisible then return end
+    for i = 1, 12 do safeSet(slot.lines[i], { Visible = false }) end
+    safeSet(slot.name, { Visible = false })
+    safeSet(slot.distance, { Visible = false })
+    safeSet(slot.owner, { Visible = false })
+    safeSet(slot.tracer, { Visible = false })
+    slot.lastVisible = false
+end
+
+local EDGES = {
+    { 1, 2 }, { 2, 3 }, { 3, 4 }, { 4, 1 },
+    { 5, 6 }, { 6, 7 }, { 7, 8 }, { 8, 5 },
+    { 1, 5 }, { 2, 6 }, { 3, 7 }, { 4, 8 },
+}
+
+local function renderDroneSlot(slot, drone)
+    local model = drone.model
+    if not model or not model.Parent then
+        slot.emptyFrames = slot.emptyFrames + 1
+        if slot.emptyFrames >= 3 then hideDroneSlot(slot) end
+        return
+    end
+    if Config.Visuals.DroneEsp.TeamCheck and drone.owner and isTeammate(drone.owner) then
+        hideDroneSlot(slot)
+        slot.emptyFrames = 0
+        return
+    end
+    if not camera then hideDroneSlot(slot); return end
+
+    local part = drone.part
+    if not part or not part.Parent then
+        part = findFirstPart(model)
+        if not part then
+            slot.emptyFrames = slot.emptyFrames + 1
+            if slot.emptyFrames >= 3 then hideDroneSlot(slot) end
+            return
+        end
+    end
+
+    local dist = (part.Position - camera.CFrame.Position).Magnitude
+    if dist > Config.Visuals.DroneEsp.MaxDistance then
+        slot.emptyFrames = slot.emptyFrames + 1
+        if slot.emptyFrames >= 3 then hideDroneSlot(slot) end
+        return
+    end
+
+    local ok, cf, size = pcall(function()
+        local c, s = model:GetBoundingBox()
+        return c, s
+    end)
+    if not ok or not cf then
+        slot.emptyFrames = slot.emptyFrames + 1
+        if slot.emptyFrames >= 3 then hideDroneSlot(slot) end
+        return
+    end
+
+    slot.emptyFrames = 0
+
+    local sx = size.X * 0.5
+    local sy = size.Y * 0.5
+    local sz = size.Z * 0.5
+    local corners = {
+        cf * Vector3.new(-sx, -sy, -sz),
+        cf * Vector3.new( sx, -sy, -sz),
+        cf * Vector3.new( sx, -sy,  sz),
+        cf * Vector3.new(-sx, -sy,  sz),
+        cf * Vector3.new(-sx,  sy, -sz),
+        cf * Vector3.new( sx,  sy, -sz),
+        cf * Vector3.new( sx,  sy,  sz),
+        cf * Vector3.new(-sx,  sy,  sz),
+    }
+
+    local projected = {}
+    for i = 1, 8 do
+        local okp, sp = pcall(function()
+            return camera:WorldToViewportPoint(corners[i])
+        end)
+        if okp and sp and sp.Z > 0.05 then
+            projected[i] = Vector2.new(sp.X, sp.Y)
+        end
+    end
+
+    local anyLine = false
+    for i = 1, 12 do
+        local edge = EDGES[i]
+        local a = projected[edge[1]]
+        local b = projected[edge[2]]
+        local line = slot.lines[i]
+        if line then
+            if a and b and Config.Visuals.DroneEsp.Box then
+                safeSet(line, {
+                    Visible = true,
+                    From = a,
+                    To = b,
+                    Color = Color3.new(1, 1, 1),
+                    Thickness = 1,
+                    Transparency = 1,
+                })
+                anyLine = true
+            else
+                safeSet(line, { Visible = false })
+            end
+        end
+    end
+
+    if not anyLine and Config.Visuals.DroneEsp.Box then
+        slot.emptyFrames = slot.emptyFrames + 1
+        if slot.emptyFrames >= 3 then hideDroneSlot(slot) end
+        return
+    end
+
+    local cX, cY, cN = 0, 0, 0
+    local minX, minY, maxX, maxY = math.huge, math.huge, -math.huge, -math.huge
+    for i = 1, 8 do
+        local p = projected[i]
+        if p then
+            cX = cX + p.X
+            cY = cY + p.Y
+            cN = cN + 1
+            if p.X < minX then minX = p.X end
+            if p.X > maxX then maxX = p.X end
+            if p.Y < minY then minY = p.Y end
+            if p.Y > maxY then maxY = p.Y end
+        end
+    end
+    if cN > 0 then
+        cX = cX / cN
+        cY = cY / cN
+    end
+
+    if Config.Visuals.DroneEsp.Name and slot.name then
+        safeSet(slot.name, {
+            Visible = true,
+            Text = model.Name,
+            Color = Color3.new(1, 1, 1),
+            Size = 13,
+            Center = true,
+            Outline = true,
+            OutlineColor = Color3.new(0, 0, 0),
+            Position = Vector2.new(cX, minY - 16),
+            Transparency = 1,
+        })
+    else
+        safeSet(slot.name, { Visible = false })
+    end
+
+    if Config.Visuals.DroneEsp.Distance and slot.distance then
+        safeSet(slot.distance, {
+            Visible = true,
+            Text = string.format("%dm", math.floor(dist + 0.5)),
+            Color = Color3.new(1, 1, 1),
+            Size = 13,
+            Center = true,
+            Outline = true,
+            OutlineColor = Color3.new(0, 0, 0),
+            Position = Vector2.new(cX, maxY + 2),
+            Transparency = 1,
+        })
+    else
+        safeSet(slot.distance, { Visible = false })
+    end
+
+    if Config.Visuals.DroneEsp.Owner and slot.owner and drone.owner then
+        safeSet(slot.owner, {
+            Visible = true,
+            Text = drone.owner.Name,
+            Color = Color3.new(1, 1, 1),
+            Size = 11,
+            Center = true,
+            Outline = true,
+            OutlineColor = Color3.new(0, 0, 0),
+            Position = Vector2.new(cX, maxY + 16),
+            Transparency = 1,
+        })
+    else
+        safeSet(slot.owner, { Visible = false })
+    end
+
+    if Config.Visuals.DroneEsp.Tracer and slot.tracer then
+        local vp = camera.ViewportSize
+        safeSet(slot.tracer, {
+            Visible = true,
+            From = Vector2.new(vp.X * 0.5, vp.Y),
+            To = Vector2.new(cX, cY),
+            Color = Color3.new(1, 1, 1),
+            Thickness = 1,
+            Transparency = 0.6,
+        })
+    else
+        safeSet(slot.tracer, { Visible = false })
+    end
+
+    slot.lastVisible = true
+end
+
+local highlightInstances = {}
+
+local function updateHighlight(entry)
+    if not Config.Visuals.PlayerEsp.Highlight then
+        return
+    end
+    if entry.friendly then return end
+    local char = entry.char
+    if not char then return end
+    local h = char:FindFirstChild("__lf_highlight")
+    if not h then
+        local ok, inst = pcall(function()
+            return Instance.new("Highlight")
+        end)
+        if not ok or not inst then return end
+        inst.Name = "__lf_highlight"
+        inst.FillColor = Color3.new(1, 1, 1)
+        inst.OutlineColor = Color3.new(1, 1, 1)
+        inst.FillTransparency = 0.7
+        inst.OutlineTransparency = 0.1
+        inst.Parent = char
+    end
+end
+
+local function clearHighlights()
+    for _, cache in pairs(playerCache) do
+        local char = cache.char
+        if char then
+            local h = char:FindFirstChild("__lf_highlight")
+            if h then pcall(function() h:Destroy() end) end
+        end
+    end
+end
+
+local function applyWorld()
+    pcall(function()
+        if Config.Visuals.World.Fullbright then
+            Lighting.Brightness = 3
+            Lighting.ClockTime = 14
+            Lighting.GlobalShadows = false
+        else
+            Lighting.Brightness = LightingOriginal.Brightness
+            Lighting.ClockTime = LightingOriginal.ClockTime
+        end
+
+        if Config.Visuals.World.RemoveFog then
+            Lighting.FogEnd = 100000
+            Lighting.FogStart = 0
+        else
+            Lighting.FogEnd = LightingOriginal.FogEnd
+            Lighting.FogStart = LightingOriginal.FogStart
+        end
+
+        if Config.Visuals.World.RemoveSky then
+            local s = Lighting:FindFirstChildOfClass("Sky")
+            if s then s.StarCount = 0; s.SkyboxBk = ""; s.SkyboxDn = ""; s.SkyboxFt = ""; s.SkyboxLf = ""; s.SkyboxRt = ""; s.SkyboxUp = "" end
+        end
+
+        if Config.Visuals.World.NoAmbience then
+            Lighting.OutdoorAmbient = Color3.fromRGB(200, 200, 200)
+        else
+            Lighting.OutdoorAmbient = LightingOriginal.OutdoorAmbient
+        end
+    end)
+end
+
+local flyBodyVel = nil
+local flyBodyGyro = nil
+local flyAnimConn = nil
+
+local function startFly()
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    pcall(function()
+        flyBodyVel = Instance.new("BodyVelocity")
+        flyBodyVel.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+        flyBodyVel.Velocity = Vector3.zero
+        flyBodyVel.Parent = hrp
+
+        flyBodyGyro = Instance.new("BodyGyro")
+        flyBodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+        flyBodyGyro.P = 1e4
+        flyBodyGyro.Parent = hrp
+    end)
+
+    if flyAnimConn then flyAnimConn:Disconnect() end
+    flyAnimConn = RunService.Heartbeat:Connect(function()
+        if not Config.Misc.Fly or not flyBodyVel or not flyBodyVel.Parent then return end
+        local hrp2 = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        if not hrp2 or not camera then return end
+
+        local dir = Vector3.zero
+        local move = UserInputService:GetKeysPressed()
+        for _, k in ipairs(move) do
+            if k.KeyCode == Enum.KeyCode.W then dir = dir + camera.CFrame.LookVector end
+            if k.KeyCode == Enum.KeyCode.S then dir = dir - camera.CFrame.LookVector end
+            if k.KeyCode == Enum.KeyCode.A then dir = dir - camera.CFrame.RightVector end
+            if k.KeyCode == Enum.KeyCode.D then dir = dir + camera.CFrame.RightVector end
+            if k.KeyCode == Enum.KeyCode.Space then dir = dir + Vector3.new(0, 1, 0) end
+            if k.KeyCode == Enum.KeyCode.LeftControl then dir = dir - Vector3.new(0, 1, 0) end
+        end
+        if dir.Magnitude > 0.01 then dir = dir.Unit end
+
+        pcall(function()
+            flyBodyVel.Velocity = dir * Config.Misc.FlySpeed
+            flyBodyGyro.CFrame = camera.CFrame
+        end)
+    end)
+    table.insert(connections, flyAnimConn)
+end
+
+local function stopFly()
+    if flyBodyVel then pcall(function() flyBodyVel:Destroy() end); flyBodyVel = nil end
+    if flyBodyGyro then pcall(function() flyBodyGyro:Destroy() end); flyBodyGyro = nil end
+    if flyAnimConn then pcall(function() flyAnimConn:Disconnect() end); flyAnimConn = nil end
+end
+
+local function applyNoclip(on)
+    local function setCollide(node, c)
+        for _, d in ipairs(node:GetDescendants()) do
+            if d:IsA("BasePart") and d.CanCollide ~= c then
+                d.CanCollide = c
+            end
+        end
+    end
+    local char = player.Character
+    if not char then return end
+    pcall(function() setCollide(char, not on) end)
+end
+
+local function antiFallTick()
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    if hrp.Position.Y < -50 then
+        pcall(function()
+            hrp.CFrame = CFrame.new(0, 100, 0)
+        end)
+    end
+end
+
+local function charTick()
+    local char = player.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+
+    if Config.Misc.SpeedEnabled then
+        if hum.WalkSpeed ~= Config.Misc.WalkSpeed then
+            hum.WalkSpeed = Config.Misc.WalkSpeed
+        end
+    end
+
+    if Config.Misc.JumpEnabled then
+        hum.JumpPower = Config.Misc.JumpPower
+    end
+
+    if Config.Auto.AlwaysSprint then
+        if hum.WalkSpeed < 20 and not Config.Misc.SpeedEnabled then
+            hum.WalkSpeed = 20
+        end
+    end
+
+    if Config.Auto.AutoReload then
+        local tool = char:FindFirstChildOfClass("Tool")
+        if tool then
+            if Config.Weapon.InstaReload then
+                pcall(function()
+                    if tool:FindFirstChild("Ammo") then
+                        tool.Ammo.Value = 30
+                    end
+                end)
+            end
+        end
+    end
+
+    if Config.Misc.Freeze then
+        hum.WalkSpeed = 0
+        hum.JumpPower = 0
+    elseif Config.Misc.SpeedEnabled then
+        hum.WalkSpeed = Config.Misc.WalkSpeed
+    elseif Config.Misc.JumpEnabled then
+        hum.JumpPower = Config.Misc.JumpPower
+    end
+end
+
+local autoJumpConn = nil
+local function setupAutoJump()
+    if autoJumpConn then
+        pcall(function() autoJumpConn:Disconnect() end)
+        autoJumpConn = nil
+    end
+    if Config.Misc.InfiniteJump or Config.Auto.AutoJump or Config.Auto.BunnyHop then
+        autoJumpConn = UserInputService.JumpRequest:Connect(function()
+            local char = player.Character
+            if not char then return end
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if not hum then return end
+            if Config.Misc.InfiniteJump then
+                pcall(function()
+                    hum:ChangeState(Enum.HumanoidStateType.Jumping)
+                end)
+            end
+            if Config.Auto.BunnyHop or Config.Auto.AutoJump then
+                pcall(function()
+                    hum.Jump = true
+                end)
+                task.wait(0.05)
+                pcall(function()
+                    hum:ChangeState(Enum.HumanoidStateType.Jumping)
+                end)
+            end
+        end)
+        table.insert(connections, autoJumpConn)
+    end
+end
+
+local afkConn = nil
+local function setupAntiAfk()
+    if afkConn then
+        pcall(function() afkConn:Disconnect() end)
+        afkConn = nil
+    end
+    if Config.Auto.AntiAfk then
+        afkConn = player.Idled:Connect(function()
+            local vu = game:GetService("VirtualUser")
+            pcall(function()
+                vu:CaptureController()
+                vu:ClickButton2(Vector2.new(0, 0))
+            end)
+        end)
+        table.insert(connections, afkConn)
+    end
+end
+
+local killListener = nil
+local chatListener = nil
+
+local function setupLogs()
+    if Config.LogKills and not killListener then
+        local network = ReplicatedStorage:FindFirstChild("network")
+        if network then
+            local killed = network:FindFirstChild("killedPlayer")
+            if killed then
+                killListener = killed.OnClientEvent:Connect(function(victim, killer)
+                    print("[KILL]", tostring(killer), "->", tostring(victim))
+                end)
+                table.insert(connections, killListener)
+            end
+        end
+    elseif not Config.LogKills and killListener then
+        pcall(function() killListener:Disconnect() end)
+        killListener = nil
+    end
+
+    if Config.LogChat and not chatListener then
+        chatListener = player.Chatted:Connect(function(msg)
+            print("[CHAT]", player.Name .. ":", msg)
+        end)
+        table.insert(connections, chatListener)
+    elseif not Config.LogChat and chatListener then
+        pcall(function() chatListener:Disconnect() end)
+        chatListener = nil
+    end
+end
+
+local function clearGoneSlots()
+    for plr, slot in pairs(playerEspSlots) do
+        if not plr.Parent then
+            safeRemove(slot.box)
+            safeRemove(slot.boxOutline)
+            safeRemove(slot.boxFill)
+            safeRemove(slot.name)
+            safeRemove(slot.distance)
+            safeRemove(slot.healthBg)
+            safeRemove(slot.healthFg)
+            safeRemove(slot.hpText)
+            safeRemove(slot.weapon)
+            safeRemove(slot.headCircle)
+            safeRemove(slot.tracer)
+            for i = 1, 12 do safeRemove(slot.skeleton[i]) end
+            playerEspSlots[plr] = nil
+        end
+    end
+
+    local present = {}
+    for _, d in ipairs(droneCache) do
+        if d.model then present[d.model] = true end
+    end
+    for model, slot in pairs(droneEspSlots) do
+        if not present[model] or not model.Parent then
+            for i = 1, 12 do safeRemove(slot.lines[i]) end
+            safeRemove(slot.name)
+            safeRemove(slot.distance)
+            safeRemove(slot.owner)
+            safeRemove(slot.tracer)
+            droneEspSlots[model] = nil
+        end
+    end
+end
+
+local lastTargetLabelUpdate = 0
+local function updateTargetLabel()
+    if not silentTargetLabel then return end
+    local now = os.clock()
+    if now - lastTargetLabelUpdate < 0.1 then return end
+    lastTargetLabelUpdate = now
+    if not Config.Aim.Enabled then
+        pcall(function() silentTargetLabel.Text = "none" end)
+        return
+    end
+    pcall(function() silentTargetLabel.Text = currentAimTargetName or "none" end)
+end
+
+local renderConn = RunService.RenderStepped:Connect(function()
+    if not camera then return end
+
+    if Config.Visuals.PlayerEsp.Enabled then
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= player then
+                local entry = playerCache[plr]
+                if entry then
+                    local slot = ensurePlayerSlot(plr)
+                    pcall(renderPlayerSlot, slot, entry)
+                    pcall(updateHighlight, entry)
+                end
+            end
+        end
+    else
+        for _, slot in pairs(playerEspSlots) do hidePlayerSlot(slot) end
+    end
+
+    if Config.Visuals.DroneEsp.Enabled then
+        for _, d in ipairs(droneCache) do
+            if d.model then
+                local slot = ensureDroneSlot(d.model)
+                pcall(renderDroneSlot, slot, d)
+            end
+        end
+    else
+        for _, slot in pairs(droneEspSlots) do hideDroneSlot(slot) end
+    end
+
+    pcall(updateFovCircle)
+    pcall(updateCrosshair)
+    pcall(updateTargetLabel)
+end)
+table.insert(connections, renderConn)
+
+local heartbeatConn = RunService.Heartbeat:Connect(function()
+    pcall(refreshPlayerCache)
+    pcall(refreshTeamRegistry)
+    pcall(charTick)
+    pcall(triggerTick)
+
+    if Config.Misc.AntiFall then
+        pcall(antiFallTick)
+    end
+
+    if Config.Misc.Fly and not flyBodyVel then
+        pcall(startFly)
+    elseif not Config.Misc.Fly and flyBodyVel then
+        pcall(stopFly)
+    end
+
+    if Config.Misc.Noclip then
+        pcall(applyNoclip, true)
+    end
+
+    pcall(clearGoneSlots)
+    pcall(setupLogs)
+end)
+table.insert(connections, heartbeatConn)
+
+local setupLoopConn
+setupLoopConn = RunService.Heartbeat:Connect(function()
+    pcall(setupAutoJump)
+    pcall(setupAntiAfk)
+    if setupLoopConn then
+        setupLoopConn:Disconnect()
+        setupLoopConn = nil
+    end
+end)
+table.insert(connections, setupLoopConn)
+
+task.spawn(function()
+    while true do
+        local wait = 1.5 + math.random() * 1.0
+        task.wait(wait)
+        pcall(runDroneScan)
+    end
+end)
+
+pcall(refreshPlayerCache)
+pcall(detectAnticheat, false)
+pcall(runDroneScan)
+pcall(installRaycastHook)
+pcall(applyAntiban)
+
+local fovCircleProbe = ensureFovCircle()
+
+getgenv().LostFrontReport = function()
+    print("=== Lost Front Report ===")
+    print("Drawing available:", tostring(hasDrawing))
+    print("Raycast hook:", originalRaycast and "installed" or "missing")
+    print("Metacall hooked:", tostring(namaecallHooked))
+
+    if teamRegistry then
+        local names = {}
+        if teamRegistryKeys then
+            for _, k in ipairs(teamRegistryKeys) do table.insert(names, k) end
+        end
+        print("Team registry: found via", table.concat(names, ","))
+    else
+        print("Team registry: not found")
+    end
+
+    print("My team group:", tostring(getMyTeam()))
+    print("Team groups A/B:", TEAM_GROUP_A, "/", TEAM_GROUP_B)
+
+    local cnt, friendlyCnt, hostileCnt = 0, 0, 0
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= player then
+            cnt = cnt + 1
+            local entry = playerCache[plr]
+            local fr = entry and entry.friendly or false
+            local tg = entry and entry.team or "?"
+            print(string.format("  %-25s team=%s friendly=%s", plr.Name, tostring(tg), tostring(fr)))
+            if fr then friendlyCnt = friendlyCnt + 1 else hostileCnt = hostileCnt + 1 end
+        end
+    end
+    print("Players:", cnt, "friendly:", friendlyCnt, "enemy:", hostileCnt)
+
+    local dronesWithOwner = 0
+    for _, d in ipairs(droneCache) do
+        if d.owner then dronesWithOwner = dronesWithOwner + 1 end
+    end
+    print("Drones found:", #droneCache, "with owner:", dronesWithOwner)
+
+    print("--- Anticheat ---")
+    print("AC remote:", tostring(acRemote))
+    print("Terminate remote:", tostring(terminateRemote))
+    print("Report remote:", tostring(reportRemote))
+    print("Registry remotes:", #registryRemotes)
+    for _, entry in ipairs(registryRemotes) do
+        print("  -", entry.name)
+    end
+
+    print("=== End of report ===")
+end
+
+getgenv().LostFrontUnload = function()
+    if originalRaycast and type(restorefunction) == "function" then
+        pcall(function() restorefunction(Workspace.Raycast) end)
+    end
+
+    for _, connection in ipairs(connections) do
+        pcall(function() connection:Disconnect() end)
+    end
+    connections = {}
+
+    for _, obj in ipairs(allDrawings) do
+        pcall(function() obj:Remove() end)
+    end
+    allDrawings = {}
+
+    for _, slot in pairs(playerEspSlots) do
+        safeRemove(slot.box)
+        safeRemove(slot.boxOutline)
+        safeRemove(slot.boxFill)
+        safeRemove(slot.name)
+        safeRemove(slot.distance)
+        safeRemove(slot.healthBg)
+        safeRemove(slot.healthFg)
+        safeRemove(slot.hpText)
+        safeRemove(slot.weapon)
+        safeRemove(slot.headCircle)
+        safeRemove(slot.tracer)
+        for i = 1, 12 do safeRemove(slot.skeleton[i]) end
+    end
+    playerEspSlots = {}
+
+    for _, slot in pairs(droneEspSlots) do
+        for i = 1, 12 do safeRemove(slot.lines[i]) end
+        safeRemove(slot.name)
+        safeRemove(slot.distance)
+        safeRemove(slot.owner)
+        safeRemove(slot.tracer)
+    end
+    droneEspSlots = {}
+
+    if fovCircle then safeRemove(fovCircle); fovCircle = nil end
+    for i = 1, 4 do
+        if crosshairLines[i] then safeRemove(crosshairLines[i]); crosshairLines[i] = nil end
+    end
+
+    if flyBodyVel then pcall(function() flyBodyVel:Destroy() end); flyBodyVel = nil end
+    if flyBodyGyro then pcall(function() flyBodyGyro:Destroy() end); flyBodyGyro = nil end
+    if flyAnimConn then pcall(function() flyAnimConn:Disconnect() end); flyAnimConn = nil end
+
+    clearHighlights()
+
+    local g = playerGui:FindFirstChild("ShitaroMenuOnly")
+    if g then pcall(function() g:Destroy() end) end
+
+    pcall(function()
+        Lighting.Brightness = LightingOriginal.Brightness
+        Lighting.ClockTime = LightingOriginal.ClockTime
+        Lighting.FogEnd = LightingOriginal.FogEnd
+        Lighting.FogStart = LightingOriginal.FogStart
+        Lighting.Ambient = LightingOriginal.Ambient
+        Lighting.OutdoorAmbient = LightingOriginal.OutdoorAmbient
+    end)
+
+    local char = player.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            pcall(function() hum.WalkSpeed = 16 end)
+            pcall(function() hum.JumpPower = 50 end)
+        end
+    end
+
+    if getgenv then
+        getgenv().LostFrontReport = nil
+        getgenv().LostFrontUnload = nil
+        getgenv()._lastAimTick = nil
+    end
+end
